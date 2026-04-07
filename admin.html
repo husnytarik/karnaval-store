@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin — Stanley</title>
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-name">Stanley</div>
+        <div class="logo-sub">Admin Paneli</div>
+      </div>
+      <nav class="nav">
+        <div class="nav-item active">
+          <span class="nav-icon">◈</span> Ürünler
+        </div>
+      </nav>
+      <div class="sidebar-foot">
+        <div>Larenea Studio</div>
+        <button
+          class="btn-view-site"
+          onclick="window.open('index.html', '_blank')"
+        >
+          Siteyi Gör →
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <div class="topbar">
+        <div class="page-title">Ürün Yönetimi</div>
+        <div class="topbar-right">
+          <div class="save-dot" id="save-dot">Hazır</div>
+          <button class="btn-add-product" onclick="openNewProductModal()">
+            + Yeni Ürün
+          </button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="prod-list" id="prod-list">
+          <div class="empty-state">Yükleniyor...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD PRODUCT MODAL -->
+    <div class="modal-overlay" id="product-modal">
+      <div class="modal-box" style="max-width: 620px">
+        <div class="modal-box-head">
+          <div class="modal-box-title">Yeni Ürün</div>
+          <button class="modal-close-btn" onclick="closeProductModal()">
+            ✕
+          </button>
+        </div>
+        <div class="modal-box-body">
+          <div class="two-col">
+            <div class="field-group">
+              <label class="field-label">Ürün Adı *</label>
+              <input
+                class="field-input"
+                id="m-name"
+                placeholder="Stanley Quencher H2.0"
+              />
+            </div>
+            <div class="field-group">
+              <label class="field-label">Emoji</label>
+              <input class="field-input" id="m-emoji" placeholder="🥤" />
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Açıklama</label>
+            <textarea
+              class="field-input"
+              id="m-desc"
+              rows="2"
+              placeholder="Ürün açıklaması..."
+            ></textarea>
+          </div>
+          <div class="two-col">
+            <div class="field-group">
+              <label class="field-label">Fiyat (₺) *</label>
+              <input
+                class="field-input"
+                id="m-price"
+                type="number"
+                placeholder="1290"
+              />
+            </div>
+            <div class="field-group">
+              <label class="field-label">Rozet</label>
+              <input
+                class="field-input"
+                id="m-badge"
+                placeholder="Çok Satan, Yeni..."
+              />
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label"
+              >Boy / Kapasite Seçenekleri (virgülle ayır)</label
+            >
+            <input
+              class="field-input"
+              id="m-sizes"
+              placeholder="1.2 L, 0.9 L, 0.6 L"
+            />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Ek Seçenek (opsiyonel)</label>
+            <div style="display: flex; gap: 8px">
+              <input
+                class="field-input"
+                id="m-chip-label"
+                placeholder="Kapak Tipi"
+                style="flex: 0.8"
+              />
+              <input
+                class="field-input"
+                id="m-chip-vals"
+                placeholder="Straw Lid, Flip Cap"
+                style="flex: 2"
+              />
+            </div>
+          </div>
+          <div class="group-section">
+            <div class="group-section-title">⬡ Varyant Grubu (opsiyonel)</div>
+            <div class="two-col">
+              <div class="field-group" style="margin-bottom: 0">
+                <label class="field-label">Grup ID</label>
+                <input
+                  class="field-input"
+                  id="m-group-id"
+                  placeholder="aerolight-mug"
+                />
+              </div>
+              <div class="field-group" style="margin-bottom: 0">
+                <label class="field-label">Bu Ürünün Etiketi</label>
+                <input
+                  class="field-input"
+                  id="m-group-label"
+                  placeholder="0.35 L"
+                />
+              </div>
+            </div>
+            <p
+              style="
+                font-size: 12px;
+                color: var(--text2);
+                margin-top: 8px;
+                line-height: 1.5;
+              "
+            >
+              Aynı ürünün farklı litre seçenekleri için doldurun. Grup ID aynı
+              olan ürünler modalde birleşir.
+            </p>
+          </div>
+          <div class="field-group" style="margin-top: 14px">
+            <label class="check-label">
+              <input
+                type="checkbox"
+                id="m-engrave"
+                checked
+                style="accent-color: var(--accent); width: 15px; height: 15px"
+              />
+              Özel İsim Yazma (Lazer Kazıma) seçeneği ekle
+            </label>
+          </div>
+        </div>
+        <div class="modal-box-foot">
+          <button class="btn-text" onclick="closeProductModal()">İptal</button>
+          <button class="btn-save-card" onclick="saveNewProduct()">
+            Ürünü Ekle →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div class="confirm-overlay" id="confirm-overlay">
+      <div class="confirm-box">
+        <div class="confirm-icon">🗑️</div>
+        <div class="confirm-title" id="confirm-title">Sil</div>
+        <div class="confirm-sub" id="confirm-sub">Bu işlem geri alınamaz.</div>
+        <div class="confirm-btns">
+          <button
+            class="btn-save-card"
+            style="
+              background: var(--surface2);
+              color: var(--text2);
+              border: 1.5px solid var(--border);
+              flex: 1;
+            "
+            onclick="
+              document
+                .getElementById('confirm-overlay')
+                .classList.remove('open')
+            "
+          >
+            Vazgeç
+          </button>
+          <button
+            class="btn-save-card"
+            id="confirm-action-btn"
+            style="background: var(--danger); flex: 1"
+          >
+            Sil
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="js/supabase.js"></script>
+    <script src="js/admin.js"></script>
+  </body>
+</html>
