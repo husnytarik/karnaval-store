@@ -71,7 +71,10 @@ export async function onRequest({ request, env }) {
       return json({ ok: true }, 200, { 'set-cookie': 'session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0' });
 
     if (route === 'categories' && method === 'GET')
-      return json(await sql`SELECT id, name FROM categories ORDER BY name`);
+      return json(await sql`SELECT c.id, c.name,
+        (SELECT p.image_id FROM products p WHERE p.category_id = c.id AND p.active AND p.image_id IS NOT NULL ORDER BY p.created_at DESC LIMIT 1) AS image_id,
+        (SELECT count(*)::int FROM products p WHERE p.category_id = c.id AND p.active) AS n
+        FROM categories c ORDER BY c.name`);
 
     if (route === 'products' && method === 'GET') {
       const q = url.searchParams.get('q');
