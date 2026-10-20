@@ -44,7 +44,8 @@ header.top .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:cen
 .features div{display:flex;gap:14px;align-items:center;justify-content:center;padding:22px 10px;border-right:1px solid var(--line);font-size:.8rem;color:var(--muted);line-height:1.35}
 .features div:last-child{border-right:0}
 .features b{display:block;color:var(--ink);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}
-.features .ic{font-size:1.7rem}
+.features .ic{width:30px;height:30px;flex:none;stroke:var(--ink);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.ph{background:#fbf3e4 url(/favicon.png) center/42% no-repeat!important}
 
 /* bölüm başlıkları */
 h2.sec{text-align:center;margin:44px 0 20px;font-size:.95rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}

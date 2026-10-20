@@ -32,10 +32,10 @@
 </div></section>
 
 <div class="wrap features">
-  <div><span class="ic">✏️</span><span><b>Geniş çeşit</b>İhtiyacınız olan her şey</span></div>
-  <div><span class="ic">⭐</span><span><b>Kaliteli ürünler</b>Özenle seçilmiş markalar</span></div>
-  <div><span class="ic">🚚</span><span><b>Kapıda teslim</b>Siparişiniz size gelsin</span></div>
-  <div><span class="ic">💬</span><span><b>Destek</b>Sorularınız için yanınızdayız</span></div>
+  <div><svg class="ic" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2 2 0 013 3L8 19l-4 1z"/><path d="M14 7l3 3"/></svg><span><b>Geniş çeşit</b>İhtiyacınız olan her şey</span></div>
+  <div><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z"/></svg><span><b>Kaliteli ürünler</b>Özenle seçilmiş markalar</span></div>
+  <div><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg><span><b>Kapıda teslim</b>Siparişiniz size gelsin</span></div>
+  <div><svg class="ic" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01"/></svg><span><b>Destek</b>Sorularınız için yanınızdayız</span></div>
 </div>
 
 <main class="wrap">
@@ -93,7 +93,7 @@ async function loadCats() {
   $('#kategoriler').style.display = cats.length ? '' : 'none';
   $('#chips').innerHTML = [{ id: '', name: 'Tümü', n: null }, ...cats].map(c => `
     <div class="cat-tile ${String(c.id) === cat ? 'on' : ''}" data-id="${c.id}">
-      <div class="pic" ${c.image_id ? `style="background-image:url(/api/images/${c.image_id})"` : ''}>${c.image_id ? '' : '✏️'}</div>
+      <div class="pic ${c.image_id ? "" : "ph"}" ${c.image_id ? `style="background-image:url(/api/images/${c.image_id})"` : ""}></div>
       <b>${esc(c.name)}</b>${c.n != null ? `<small>${c.n} ürün</small>` : '<small>Hepsini gör</small>'}
     </div>`).join('');
 }
@@ -114,7 +114,7 @@ function renderProducts() {
   $('#moreBtn').hidden = filtered || showAll || products.length <= PREVIEW;
   $('#grid').innerHTML = list.map(p => `
     <div class="card">
-      <div class="img" ${p.image_id ? `style="background-image:url(/api/images/${p.image_id})"` : ''}>${p.image_id ? '' : '✏️'}</div>
+      <div class="img ${p.image_id ? "" : "ph"}" ${p.image_id ? `style="background-image:url(/api/images/${p.image_id})"` : ""}></div>
       <div class="info">
         ${p.category ? `<span class="cat">${esc(p.category)}</span>` : ''}
         <h3>${esc(p.name)}</h3>
