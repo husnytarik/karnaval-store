@@ -135,7 +135,7 @@ td img{width:44px;height:44px;object-fit:cover;border-radius:6px;display:block}
 @media(max-width:720px){
   header.top .wrap{grid-template-columns:auto 1fr;height:70px}.logo img{height:54px}.nav{display:none}
   .hero{background:linear-gradient(rgba(255,255,255,.88),rgba(255,255,255,.8)),url(/herobg.jpg) center/cover #fff6e8}.hero .wrap{grid-template-columns:1fr;min-height:0;padding-top:48px;padding-bottom:48px}
-  .features{grid-template-columns:repeat(2,1fr)}.features div:nth-child(2){border-right:0}.features div{border-bottom:1px solid var(--line)}
+  .features{grid-template-columns:repeat(2,1fr);margin-top:28px;border-bottom:0}.features div{justify-content:flex-start;padding:16px 14px;border:1px solid var(--line);border-width:0 1px 1px 0}.features div:nth-child(odd){border-left-width:1px}.features div:nth-child(-n+2){border-top-width:1px}.features div:last-child{border-right-width:1px}.features .ic{width:26px;height:26px}
   .grid{grid-template-columns:repeat(2,1fr)}.cats{grid-template-columns:repeat(2,1fr)}
   .banner{grid-template-columns:1fr}.banner .pic{display:none}.banner .t{padding:28px}
   footer.foot .cols{grid-template-columns:1fr}.two{grid-template-columns:1fr}
