@@ -43,3 +43,6 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[
 
 -- kategori görseli
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS image_id INTEGER;
+
+-- stok: adet takibi yapmadan "stokta var" secenegi
+ALTER TABLE products ADD COLUMN IF NOT EXISTS unlimited BOOLEAN NOT NULL DEFAULT false;

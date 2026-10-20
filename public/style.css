@@ -203,3 +203,4 @@ fieldset.opts{border:1px solid var(--line);border-radius:var(--r);margin:16px 0;
 fieldset.opts legend{font-size:.8rem;color:var(--muted);padding:0 6px}
 .catsec{padding-top:8px}
 .sec .clear{font:inherit;font-size:.8rem;margin-left:12px;color:var(--brand);text-decoration:underline}
+.card .low{font-size:.75rem;color:var(--brand);margin-top:4px}

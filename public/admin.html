@@ -38,7 +38,9 @@
           <div><label>Ürün adı</label><input type="text" id="f_name" required></div>
           <div><label>Kategori</label><select id="f_cat"></select></div>
           <div><label>Fiyat (₺)</label><input type="number" id="f_price" step="0.01" min="0" required></div>
-          <div id="stockWrap"><label>Stok adedi</label><input type="number" id="f_stock" min="0" value="0"></div>
+          <div id="stockWrap"><label>Stok</label>
+            <div style="display:flex;gap:8px"><select id="f_smode" style="flex:1"><option value="count">Adet gireceğim</option><option value="in">Stokta var (adet takibi yok)</option><option value="out">Stokta yok</option></select>
+              <input type="number" id="f_stock" min="0" value="0" style="width:90px"></div></div>
         </div>
         <label>Kısa açıklama <small>(ürün kartında görünür)</small></label>
         <textarea id="f_desc" style="min-height:60px"></textarea>
@@ -158,7 +160,7 @@ async function loadProducts() {
     <td><strong>${esc(p.name)}</strong> ${p.active ? '' : '<span class="badge off">gizli</span>'}</td>
     <td>${esc(p.category || '—')}</td>
     <td>${p.on_sale ? `<s style="color:var(--muted)">${tl(p.price)}</s><br><strong>${tl(p.sale_price)}</strong>` : tl(p.price)}${saleBadge(p)}</td>
-    <td>${p.stock}</td>
+    <td>${p.unlimited ? 'Var' : p.stock}</td>
     <td style="text-align:right;white-space:nowrap"><a class="btn ghost sm" href="/urun.html?id=${p.id}" target="_blank">Gör</a>
       <button class="btn ghost sm" data-edit="${p.id}">Düzenle</button>
       <button class="btn danger sm" data-del="${p.id}">Sil</button></td></tr>`).join('')
@@ -171,7 +173,7 @@ function renderImgs() {
       <button type="button" class="btn danger sm" data-rmimg="${i}">Kaldır</button></div></div>`).join('');
 }
 // ---- renk / boy ----
-let colors = [], plain = {};
+let colors = [], plain = {}, plainUnl = {};
 const parseSizes = () => [...new Set($('#f_sizes').value.split(',').map(x => x.trim()).filter(Boolean))];
 function renderColors() {
   $('#colors').innerHTML = colors.map((c, i) => `<div class="ccard">
@@ -183,7 +185,7 @@ function renderColors() {
   renderStock();
 }
 function renderStock() {
-  const sizes = parseSizes(), rows = colors.length ? colors : [{ name: '', stock: plain }];
+  const sizes = parseSizes(), rows = colors.length ? colors : [{ name: '', stock: plain, unl: plainUnl }];
   const has = colors.length || sizes.length;
   $('#stockWrap').hidden = !!has;
   if (!has) { $('#stockGrid').innerHTML = ''; return; }
@@ -191,9 +193,9 @@ function renderStock() {
   $('#stockGrid').innerHTML = '<label style="margin-top:14px">Seçenek başına stok adedi</label><table class="vgrid"><thead><tr><th></th>'
     + cols.map(z => `<th>${esc(z || 'Stok')}</th>`).join('') + '</tr></thead><tbody>'
     + rows.map((c, i) => `<tr><td>${esc(c.name || (colors.length ? '(adsız renk)' : '—'))}</td>${cols.map(z =>
-      `<td><input type="number" min="0" data-st="${colors.length ? i : -1}|${esc(z)}" value="${c.stock[z] ?? 0}"></td>`).join('')}</tr>`).join('') + '</tbody></table>';
+      `<td><input type="number" min="0" data-st="${colors.length ? i : -1}|${esc(z)}" value="${c.stock[z] ?? 0}" ${c.unl?.[z] ? 'disabled' : ''}><label style="display:block;font-size:.75rem;color:var(--muted)"><input type="checkbox" data-unl="${colors.length ? i : -1}|${esc(z)}" ${c.unl?.[z] ? 'checked' : ''}> stokta var</label></td>`).join('')}</tr>`).join('') + '</tbody></table>';
 }
-$('#addColor').onclick = () => { colors.push({ name: '', gallery: [], stock: {} }); renderColors(); };
+$('#addColor').onclick = () => { colors.push({ name: '', gallery: [], stock: {}, unl: {} }); renderColors(); };
 $('#f_sizes').oninput = renderStock;
 document.addEventListener('input', e => {
   const d = e.target.dataset;
@@ -201,6 +203,10 @@ document.addEventListener('input', e => {
   if (d.st !== undefined) {
     const [i, z] = d.st.split('|'), n = Math.max(0, parseInt(e.target.value, 10) || 0);
     (+i < 0 ? plain : colors[+i].stock)[z] = n;
+  }
+  if (d.unl !== undefined) {
+    const [i, z] = d.unl.split('|'), o = +i < 0 ? plainUnl : (colors[+i].unl ||= {});
+    o[z] = e.target.checked; renderStock();
   }
 });
 document.addEventListener('change', async e => {
@@ -211,7 +217,7 @@ document.addEventListener('change', async e => {
 });
 
 function resetForm() {
-  editing = null; $('#pform').reset(); gallery = []; renderImgs(); colors = []; plain = {}; renderColors();
+  editing = null; $('#pform').reset(); gallery = []; renderImgs(); colors = []; plain = {}; plainUnl = {}; $('#f_smode').value = 'count'; renderColors();
   $('#formTitle').textContent = 'Yeni ürün'; $('#cancelEdit').hidden = true;
 }
 $('#cancelEdit').onclick = resetForm;
@@ -237,13 +243,13 @@ $('#pform').onsubmit = async e => {
   e.preventDefault();
   const body = {
     name: $('#f_name').value, description: $('#f_desc').value, details: $('#f_details').value, price: $('#f_price').value,
-    stock: $('#f_stock').value, category_id: $('#f_cat').value || null, gallery, active: $('#f_active').checked,
+    stock: $('#f_stock').value, stock_mode: $('#f_smode').value, category_id: $('#f_cat').value || null, gallery, active: $('#f_active').checked,
     size_label: $('#f_sizelabel').value, sizes: parseSizes(),
     colors: colors.filter(c => c.name.trim()).map(c => ({ name: c.name, gallery: c.gallery })),
     variants: (() => {
       const sizes = parseSizes(), cols = sizes.length ? sizes : [''];
-      return colors.length ? colors.filter(c => c.name.trim()).flatMap(c => cols.map(z => ({ color: c.name.trim(), size: z, stock: c.stock[z] || 0 })))
-        : (sizes.length ? sizes.map(z => ({ color: '', size: z, stock: plain[z] || 0 })) : []);
+      return colors.length ? colors.filter(c => c.name.trim()).flatMap(c => cols.map(z => ({ color: c.name.trim(), size: z, stock: c.stock[z] || 0, unlimited: !!c.unl?.[z] })))
+        : (sizes.length ? sizes.map(z => ({ color: '', size: z, stock: plain[z] || 0, unlimited: !!plainUnl[z] })) : []);
     })(),
     sale_price: $('#f_sale').value, sale_start: $('#f_sstart').value || null, sale_end: $('#f_send').value || null,
   };
@@ -262,8 +268,11 @@ document.addEventListener('click', async e => {
     gallery = p.gallery?.length ? [...p.gallery] : (p.image_id ? [p.image_id] : []); renderImgs();
     $('#f_sizelabel').value = p.size_label || 'Boy'; $('#f_sizes').value = (p.sizes || []).join(', ');
     const stockOf = (c, z) => p.variants.find(v => v.color === c && v.size === z)?.stock ?? 0;
-    colors = (p.colors || []).map(c => ({ name: c.name, gallery: [...c.gallery], stock: Object.fromEntries((p.sizes.length ? p.sizes : ['']).map(z => [z, stockOf(c.name, z)])) }));
+    const unlOf = (c, z) => !!p.variants.find(v => v.color === c && v.size === z)?.unlimited;
+    $('#f_smode').value = p.unlimited ? 'in' : (p.stock === 0 ? 'out' : 'count');
+    colors = (p.colors || []).map(c => ({ name: c.name, gallery: [...c.gallery], stock: Object.fromEntries((p.sizes.length ? p.sizes : ['']).map(z => [z, stockOf(c.name, z)])), unl: Object.fromEntries((p.sizes.length ? p.sizes : ['']).map(z => [z, unlOf(c.name, z)])) }));
     plain = Object.fromEntries((p.sizes || []).map(z => [z, stockOf('', z)]));
+    plainUnl = Object.fromEntries((p.sizes || []).map(z => [z, unlOf('', z)]));
     renderColors();
     $('#formTitle').textContent = 'Ürünü düzenle'; $('#cancelEdit').hidden = false;
     scrollTo({ top: 0, behavior: 'smooth' });

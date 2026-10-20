@@ -2,6 +2,8 @@
 const $ = s => document.querySelector(s);
 const tl = n => Number(n).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// stok yazısı: sınırsız = "Stokta var"; adet ≤ 2 ise "Son bir/iki ürün"
+const stockText = (stock, unlimited) => (!unlimited && stock <= 0) ? 'Tükendi' : (!unlimited && stock === 1) ? 'Son bir ürün' : (!unlimited && stock === 2) ? 'Son iki ürün' : 'Stokta var';
 const imgUrl = id => `/api/images/${id}`;
 const discountPct = p => Math.round((1 - p.current_price / p.price) * 100);
 const priceHtml = p => p.on_sale
@@ -19,7 +21,7 @@ try {
 function saveCart() { try { localStorage.setItem('cart2', JSON.stringify(cart)); } catch {} renderCart(); }
 function addToCart(p, qty = 1, v) {
   const key = `${p.id}|${v?.color || ''}|${v?.size || ''}`;
-  const stock = v ? v.stock : p.stock;
+  const stock = (v ? v.unlimited : p.unlimited) ? Infinity : (v ? v.stock : p.stock);
   const cur = cart[key]?.q || 0;
   if (cur + qty > stock) return toast(`Stokta yalnızca ${stock} adet var`);
   cart[key] = { id: p.id, c: v?.color || '', s: v?.size || '', q: cur + qty, n: p.name, p: p.current_price, i: v?.image || p.image_id };

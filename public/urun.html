@@ -62,7 +62,7 @@ function renderGallery() {
 }
 function renderOptions() {
   const p = product, hasV = p.variants.length > 0;
-  const colorStock = c => p.variants.filter(v => v.color === c).reduce((a, v) => a + v.stock, 0);
+  const colorStock = c => p.variants.filter(v => v.color === c).some(v => v.unlimited) ? 1 : p.variants.filter(v => v.color === c).reduce((a, v) => a + v.stock, 0);
   $('#colorBox').hidden = !p.colors.length;
   $('#colorName').textContent = color;
   $('#colorChips').innerHTML = p.colors.map(c => {
@@ -72,12 +72,13 @@ function renderOptions() {
   $('#sizeBox').hidden = !p.sizes.length;
   $('#sizeLabel').textContent = p.size_label || 'Boy';
   $('#sizeName').textContent = size;
-  $('#sizeChips').innerHTML = p.sizes.map(z => `<button type="button" class="chip ${z === size ? 'on' : ''} ${(variantOf(color, z)?.stock || 0) ? '' : 'na'}" data-size="${esc(z)}">${esc(z)}</button>`).join('');
-  const stock = hasV ? (variantOf(color, size)?.stock || 0) : p.stock;
+  $('#sizeChips').innerHTML = p.sizes.map(z => `<button type="button" class="chip ${z === size ? 'on' : ''} ${(variantOf(color, z)?.unlimited || variantOf(color, z)?.stock) ? '' : 'na'}" data-size="${esc(z)}">${esc(z)}</button>`).join('');
+  const unl = hasV ? !!variantOf(color, size)?.unlimited : p.unlimited;
+  const stock = unl ? 999 : (hasV ? (variantOf(color, size)?.stock || 0) : p.stock);
   qty = Math.min(Math.max(1, qty), Math.max(1, stock));
   $('#qtyVal').textContent = qty;
   if (stock > 0) {
-    $('#pStock').textContent = stock <= 5 ? `Son ${stock} adet` : 'Stokta var';
+    $('#pStock').textContent = stockText(stock, unl);
     $('#pStock').className = 'stock ok'; $('#buy').hidden = false;
   } else {
     $('#pStock').textContent = hasV ? 'Bu seçenek tükendi' : 'Tükendi'; $('#pStock').className = 'stock out'; $('#buy').hidden = true;
@@ -98,7 +99,7 @@ async function load() {
   $('#pShort').textContent = p.description;
   $('#pDetails').innerHTML = p.details ? esc(p.details).replace(/\n/g, '<br>') : '<span style="color:var(--muted)">Bu ürün için ek detay girilmemiş.</span>';
   // ilk stokta olan seçeneği önceden seç
-  const first = p.variants.find(v => v.stock > 0) || p.variants[0];
+  const first = p.variants.find(v => v.stock > 0 || v.unlimited) || p.variants[0];
   color = first?.color || ''; size = first?.size || '';
   renderGallery(); renderOptions();
   $('#product').hidden = false;
@@ -108,7 +109,7 @@ document.addEventListener('click', e => {
   if (c) {
     color = c.dataset.color;
     // yeni renkte seçili boy yoksa/tükendiyse stokta olan ilk boya geç
-    if (!(variantOf(color, size)?.stock > 0)) size = product.variants.find(v => v.color === color && v.stock > 0)?.size ?? size;
+    if (!(variantOf(color, size)?.stock > 0 || variantOf(color, size)?.unlimited)) size = product.variants.find(v => v.color === color && (v.stock > 0 || v.unlimited))?.size ?? size;
     renderGallery(); renderOptions();
   }
   if (z) { size = z.dataset.size; renderOptions(); }
@@ -117,9 +118,9 @@ document.addEventListener('click', e => {
   const b = e.target.closest('.thumbs button'); if (b) show(b.dataset.img);
 });
 $('#minus').onclick = () => { qty = Math.max(1, qty - 1); $('#qtyVal').textContent = qty; };
-const curStock = () => product.variants.length ? (variantOf(color, size)?.stock || 0) : product.stock;
+const curStock = () => { const v = variantOf(color, size); return (product.variants.length ? v?.unlimited : product.unlimited) ? 999 : (product.variants.length ? (v?.stock || 0) : product.stock); };
 $('#plus').onclick = () => { qty = Math.min(curStock(), qty + 1); $('#qtyVal').textContent = qty; };
-$('#addBtn').onclick = () => addToCart(product, qty, product.variants.length ? { color, size, stock: curStock(), image: colorImgs(color)[0] } : undefined);
+$('#addBtn').onclick = () => addToCart(product, qty, product.variants.length ? { color, size, stock: curStock(), unlimited: !!variantOf(color, size)?.unlimited, image: colorImgs(color)[0] } : undefined);
 const onOrderDone = load;
 load();
 </script>

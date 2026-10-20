@@ -89,8 +89,9 @@ function renderProducts() {
         ${p.category ? `<span class="cat">${esc(p.category)}</span>` : ''}
         <h3><a href="/urun.html?id=${p.id}">${esc(p.name)}</a></h3>
         <div class="desc">${esc(p.description)}</div>
+        ${!p.unlimited && p.stock > 0 && p.stock <= 2 ? `<div class="low">${stockText(p.stock, false)}</div>` : ''}
         <div class="row"><span>${priceHtml(p)}</span>
-          ${p.stock > 0 ? `<button class="add" data-add="${p.id}" title="Sepete ekle">+</button>` : '<span class="out">Tükendi</span>'}
+          ${(p.unlimited || p.stock > 0) ? `<button class="add" data-add="${p.id}" title="Sepete ekle">+</button>` : '<span class="out">Tükendi</span>'}
         </div>
       </div>
     </div>`).join('');

@@ -32,7 +32,7 @@ const currentPrice = `(CASE WHEN ${onSale} THEN p.sale_price ELSE p.price END)::
 const productCols = `p.id, p.name, p.description, p.details, p.price::float AS price, p.sale_price::float AS sale_price,
   p.sale_start::text AS sale_start, p.sale_end::text AS sale_end, ${onSale} AS on_sale, ${currentPrice} AS current_price,
   p.stock, p.category_id, c.name AS category, p.image_id, p.gallery, p.active,
-  p.size_label, p.colors, p.sizes, p.variants`;
+  p.size_label, p.colors, p.sizes, p.variants, p.unlimited`;
 const productFrom = `FROM products p LEFT JOIN categories c ON c.id = p.category_id`;
 
 class Bad extends Error {}
@@ -63,11 +63,11 @@ function cleanProduct(b) {
     colors.push({ name: cn, gallery: [...new Set((Array.isArray(c.gallery) ? c.gallery : []).map(Number).filter(n => Number.isInteger(n) && n > 0))] });
   }
   const sizes = [...new Set((Array.isArray(b.sizes) ? b.sizes : []).map(x => String(x).trim().slice(0, 40)).filter(Boolean))];
-  const given = new Map((Array.isArray(b.variants) ? b.variants : []).map(v => [`${v.color || ''}|${v.size || ''}`, Math.max(0, parseInt(v.stock, 10) || 0)]));
+  const given = new Map((Array.isArray(b.variants) ? b.variants : []).map(v => [`${v.color || ''}|${v.size || ''}`, { stock: Math.max(0, parseInt(v.stock, 10) || 0), unlimited: v.unlimited === true }]));
   const variants = [];
   if (colors.length || sizes.length)
     for (const c of colors.length ? colors.map(c => c.name) : ['']) for (const z of sizes.length ? sizes : [''])
-      variants.push({ color: c, size: z, stock: given.get(`${c}|${z}`) || 0 });
+      { const g = given.get(`${c}|${z}`); variants.push({ color: c, size: z, stock: g && !g.unlimited ? g.stock : 0, unlimited: !!g?.unlimited }); }
   const mainImg = gallery[0] || colors.find(c => c.gallery.length)?.gallery[0] || null;
   return {
     name,
@@ -76,7 +76,8 @@ function cleanProduct(b) {
     description: String(b.description || '').trim(),
     details: String(b.details || '').trim(),
     price, sale_price, sale_start, sale_end,
-    stock: variants.length ? variants.reduce((a, v) => a + v.stock, 0) : Math.max(0, parseInt(b.stock, 10) || 0),
+    stock: variants.length ? variants.reduce((a, v) => a + v.stock, 0) : (b.stock_mode === 'in' || b.stock_mode === 'out' ? 0 : Math.max(0, parseInt(b.stock, 10) || 0)),
+    unlimited: variants.length ? variants.some(v => v.unlimited) : b.stock_mode === 'in',
     category_id: b.category_id ? Number(b.category_id) : null,
     gallery,
     image_id: mainImg,
@@ -162,7 +163,7 @@ export async function onRequest({ request, env }) {
         const k = `${id}|${color}|${size}`;
         lines.set(k, { id, color, size, qty: (lines.get(k)?.qty || 0) + qty });
       }
-      const rows = await sql.query(`SELECT p.id, p.name, ${currentPrice} AS price, p.stock, p.size_label, p.variants FROM products p WHERE p.active AND p.id = ANY($1::int[])`, [[...new Set([...lines.values()].map(l => l.id))]]);
+      const rows = await sql.query(`SELECT p.id, p.name, ${currentPrice} AS price, p.stock, p.unlimited, p.size_label, p.variants FROM products p WHERE p.active AND p.id = ANY($1::int[])`, [[...new Set([...lines.values()].map(l => l.id))]]);
       const items = [], touched = new Map();
       let total = 0;
       for (const l of lines.values()) {
@@ -170,11 +171,11 @@ export async function onRequest({ request, env }) {
         if (!p) return fail('Sepetteki bir ürün artık satışta değil');
         const t = touched.get(p.id) || { p, dec: new Map(), qty: 0 };
         touched.set(p.id, t);
-        let left = p.stock;
+        let left = p.unlimited ? Infinity : p.stock;
         if (p.variants.length) {
           const v = p.variants.find(v => v.color === l.color && v.size === l.size);
           if (!v) return fail(`"${p.name}" için seçilen seçenek artık mevcut değil`);
-          left = v.stock;
+          left = v.unlimited ? Infinity : v.stock;
           t.dec.set(`${l.color}|${l.size}`, l.qty);
         }
         t.qty += l.qty;
@@ -182,15 +183,15 @@ export async function onRequest({ request, env }) {
         items.push({ id: p.id, name: p.name, price: p.price, qty: l.qty, color: l.color, size: l.size, size_label: p.size_label });
         total += p.price * l.qty;
       }
-      for (const t of touched.values()) if (!t.p.variants.length && t.qty > t.p.stock) return fail(`"${t.p.name}" için yeterli stok yok (kalan: ${t.p.stock})`);
+      for (const t of touched.values()) if (!t.p.variants.length && !t.p.unlimited && t.qty > t.p.stock) return fail(`"${t.p.name}" için yeterli stok yok (kalan: ${t.p.stock})`);
       const [order] = await sql`INSERT INTO orders (customer_name, phone, address, note, items, total)
         VALUES (${name}, ${phone}, ${address}, ${String(b.note || '').trim()}, ${JSON.stringify(items)}::jsonb, ${total})
         RETURNING id`;
       for (const t of touched.values()) {
         if (t.p.variants.length) {
-          const vs = t.p.variants.map(v => ({ ...v, stock: Math.max(0, v.stock - (t.dec.get(`${v.color}|${v.size}`) || 0)) }));
+          const vs = t.p.variants.map(v => ({ ...v, stock: v.unlimited ? 0 : Math.max(0, v.stock - (t.dec.get(`${v.color}|${v.size}`) || 0)) }));
           await sql`UPDATE products SET variants = ${JSON.stringify(vs)}::jsonb, stock = ${vs.reduce((a, v) => a + v.stock, 0)} WHERE id = ${t.p.id}`;
-        } else await sql`UPDATE products SET stock = GREATEST(stock - ${t.qty}, 0) WHERE id = ${t.p.id}`;
+        } else if (!t.p.unlimited) await sql`UPDATE products SET stock = GREATEST(stock - ${t.qty}, 0) WHERE id = ${t.p.id}`;
       }
       return json({ ok: true, id: order.id }, 201);
     }
@@ -207,8 +208,8 @@ export async function onRequest({ request, env }) {
           return json(await sql.query(`SELECT ${productCols} ${productFrom} ORDER BY p.created_at DESC`));
         if (!id && method === 'POST') {
           const p = cleanProduct(await body());
-          const [row] = await sql`INSERT INTO products (name, description, details, price, sale_price, sale_start, sale_end, stock, category_id, image_id, gallery, active, size_label, colors, sizes, variants)
-            VALUES (${p.name}, ${p.description}, ${p.details}, ${p.price}, ${p.sale_price}, ${p.sale_start}, ${p.sale_end}, ${p.stock}, ${p.category_id}, ${p.image_id}, ${p.gallery}, ${p.active}, ${p.size_label}, ${JSON.stringify(p.colors)}::jsonb, ${JSON.stringify(p.sizes)}::jsonb, ${JSON.stringify(p.variants)}::jsonb) RETURNING id`;
+          const [row] = await sql`INSERT INTO products (name, description, details, price, sale_price, sale_start, sale_end, stock, category_id, image_id, gallery, active, size_label, colors, sizes, variants, unlimited)
+            VALUES (${p.name}, ${p.description}, ${p.details}, ${p.price}, ${p.sale_price}, ${p.sale_start}, ${p.sale_end}, ${p.stock}, ${p.category_id}, ${p.image_id}, ${p.gallery}, ${p.active}, ${p.size_label}, ${JSON.stringify(p.colors)}::jsonb, ${JSON.stringify(p.sizes)}::jsonb, ${JSON.stringify(p.variants)}::jsonb, ${p.unlimited}) RETURNING id`;
           return json(row, 201);
         }
         if (id && method === 'PUT') {
@@ -217,7 +218,7 @@ export async function onRequest({ request, env }) {
           await sql`UPDATE products SET name=${p.name}, description=${p.description}, details=${p.details}, price=${p.price},
             sale_price=${p.sale_price}, sale_start=${p.sale_start}, sale_end=${p.sale_end}, stock=${p.stock},
             category_id=${p.category_id}, image_id=${p.image_id}, gallery=${p.gallery}, active=${p.active},
-            size_label=${p.size_label}, colors=${JSON.stringify(p.colors)}::jsonb, sizes=${JSON.stringify(p.sizes)}::jsonb, variants=${JSON.stringify(p.variants)}::jsonb WHERE id=${Number(id)}`;
+            size_label=${p.size_label}, colors=${JSON.stringify(p.colors)}::jsonb, sizes=${JSON.stringify(p.sizes)}::jsonb, variants=${JSON.stringify(p.variants)}::jsonb, unlimited=${p.unlimited} WHERE id=${Number(id)}`;
           const keep = new Set(imagesOf(p));
           await dropOrphanImages(sql, imagesOf(old).filter(g => !keep.has(g)));
           return json({ ok: true });
