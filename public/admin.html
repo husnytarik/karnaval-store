@@ -38,7 +38,7 @@
           <div><label>Ürün adı</label><input type="text" id="f_name" required></div>
           <div><label>Kategori</label><select id="f_cat"></select></div>
           <div><label>Fiyat (₺)</label><input type="number" id="f_price" step="0.01" min="0" required></div>
-          <div><label>Stok adedi</label><input type="number" id="f_stock" min="0" value="0"></div>
+          <div id="stockWrap"><label>Stok adedi</label><input type="number" id="f_stock" min="0" value="0"></div>
         </div>
         <label>Kısa açıklama <small>(ürün kartında görünür)</small></label>
         <textarea id="f_desc" style="min-height:60px"></textarea>
@@ -48,6 +48,18 @@
         <label>Fotoğraflar <small>(ilk fotoğraf ana görseldir; birden fazla seçebilirsiniz)</small></label>
         <input type="file" id="f_file" accept="image/*" multiple>
         <div class="imgs" id="imgs"></div>
+
+        <fieldset class="opts">
+          <legend>Renk ve boy seçenekleri (isteğe bağlı)</legend>
+          <div class="two">
+            <div><label>Seçenek adı</label><input type="text" id="f_sizelabel" value="Boy" placeholder="Boy, Beden, Ebat…"></div>
+            <div><label>Değerler <small>(virgülle ayırın)</small></label><input type="text" id="f_sizes" placeholder="A5, A4, A3"></div>
+          </div>
+          <label>Renkler <small>(her renge kendi fotoğraflarını ekleyin; müşteri rengi seçince fotoğraflar değişir)</small></label>
+          <div id="colors"></div>
+          <p style="margin:10px 0 0"><button type="button" class="btn ghost sm" id="addColor">+ Renk ekle</button></p>
+          <div id="stockGrid"></div>
+        </fieldset>
 
         <fieldset class="sale">
           <legend>İndirim (isteğe bağlı)</legend>
@@ -70,7 +82,11 @@
 
   <section id="categories" hidden>
     <div class="panel">
-      <form id="cform" style="display:flex;gap:8px"><input type="text" id="c_name" placeholder="Yeni kategori adı" required><button class="btn">Ekle</button></form>
+      <form id="cform">
+        <div class="two"><div><label>Kategori adı</label><input type="text" id="c_name" placeholder="Ör. Kalemler" required></div>
+          <div><label>Kategori görseli</label><input type="file" id="c_file" accept="image/*"></div></div>
+        <p style="margin-bottom:0"><button class="btn">Kategori ekle</button></p>
+      </form>
     </div>
     <table><tbody id="ctable"></tbody></table>
   </section>
@@ -115,13 +131,15 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
 async function loadCats() {
   cats = await (await fetch('/api/categories')).json();
   $('#f_cat').innerHTML = '<option value="">— Kategorisiz —</option>' + cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  $('#ctable').innerHTML = cats.map(c => `<tr><td>${esc(c.name)}</td><td style="text-align:right"><button class="btn danger sm" data-delcat="${c.id}">Sil</button></td></tr>`).join('')
+  $('#ctable').innerHTML = cats.map(c => `<tr><td style="width:70px">${c.image_id ? `<img src="/api/images/${c.image_id}">` : '<div class="thumb-ph"></div>'}</td><td><strong>${esc(c.name)}</strong><br><small>${c.n} ürün</small></td><td style="text-align:right;white-space:nowrap"><label class="btn ghost sm" style="margin:0;cursor:pointer">Görsel ${c.image_id ? 'değiştir' : 'ekle'}<input type="file" accept="image/*" data-catimg="${c.id}" hidden></label> <button class="btn danger sm" data-delcat="${c.id}">Sil</button></td></tr>`).join('')
     || '<tr><td>Henüz kategori yok.</td></tr>';
 }
 $('#cform').onsubmit = async e => {
   e.preventDefault();
-  await api('admin/categories', 'POST', { name: $('#c_name').value }); $('#c_name').value = '';
-  await loadCats();
+  const f = $('#c_file').files[0];
+  const image_id = f ? await uploadFile(f) : null;
+  await api('admin/categories', 'POST', { name: $('#c_name').value, image_id }); $('#c_name').value = ''; $('#c_file').value = '';
+  toast('Kategori eklendi'); await loadCats();
 };
 
 // ---- ürünler ----
@@ -152,8 +170,48 @@ function renderImgs() {
     <div class="gbtns">${i === 0 ? '<span class="badge sale">Ana</span>' : `<button type="button" class="btn ghost sm" data-main="${i}">Ana yap</button>`}
       <button type="button" class="btn danger sm" data-rmimg="${i}">Kaldır</button></div></div>`).join('');
 }
+// ---- renk / boy ----
+let colors = [], plain = {};
+const parseSizes = () => [...new Set($('#f_sizes').value.split(',').map(x => x.trim()).filter(Boolean))];
+function renderColors() {
+  $('#colors').innerHTML = colors.map((c, i) => `<div class="ccard">
+    <div class="crow"><input type="text" data-cname="${i}" value="${esc(c.name)}" placeholder="Renk adı (ör. Kırmızı)">
+      <label class="btn ghost sm" style="margin:0;cursor:pointer">Fotoğraf ekle<input type="file" accept="image/*" multiple data-cfile="${i}" hidden></label>
+      <button type="button" class="btn danger sm" data-cdel="${i}">Rengi sil</button></div>
+    <div class="imgs">${c.gallery.map((id, j) => `<div class="gi" style="width:90px"><div class="gimg" style="width:90px;height:90px;background-image:url(/api/images/${id})"></div>
+      <div class="gbtns"><button type="button" class="btn danger sm" data-crm="${i}:${j}">Kaldır</button></div></div>`).join('')}</div></div>`).join('');
+  renderStock();
+}
+function renderStock() {
+  const sizes = parseSizes(), rows = colors.length ? colors : [{ name: '', stock: plain }];
+  const has = colors.length || sizes.length;
+  $('#stockWrap').hidden = !!has;
+  if (!has) { $('#stockGrid').innerHTML = ''; return; }
+  const cols = sizes.length ? sizes : [''];
+  $('#stockGrid').innerHTML = '<label style="margin-top:14px">Seçenek başına stok adedi</label><table class="vgrid"><thead><tr><th></th>'
+    + cols.map(z => `<th>${esc(z || 'Stok')}</th>`).join('') + '</tr></thead><tbody>'
+    + rows.map((c, i) => `<tr><td>${esc(c.name || (colors.length ? '(adsız renk)' : '—'))}</td>${cols.map(z =>
+      `<td><input type="number" min="0" data-st="${colors.length ? i : -1}|${esc(z)}" value="${c.stock[z] ?? 0}"></td>`).join('')}</tr>`).join('') + '</tbody></table>';
+}
+$('#addColor').onclick = () => { colors.push({ name: '', gallery: [], stock: {} }); renderColors(); };
+$('#f_sizes').oninput = renderStock;
+document.addEventListener('input', e => {
+  const d = e.target.dataset;
+  if (d.cname !== undefined) { colors[+d.cname].name = e.target.value; renderStock(); }
+  if (d.st !== undefined) {
+    const [i, z] = d.st.split('|'), n = Math.max(0, parseInt(e.target.value, 10) || 0);
+    (+i < 0 ? plain : colors[+i].stock)[z] = n;
+  }
+});
+document.addEventListener('change', async e => {
+  const d = e.target.dataset; if (d.cfile === undefined) return;
+  const files = [...e.target.files], c = colors[+d.cfile]; toast('Yükleniyor…');
+  for (const f of files) { try { c.gallery.push(await uploadFile(f)); renderColors(); } catch { toast('Yüklenemedi: ' + f.name); } }
+  toast('Fotoğraflar yüklendi');
+});
+
 function resetForm() {
-  editing = null; $('#pform').reset(); gallery = []; renderImgs();
+  editing = null; $('#pform').reset(); gallery = []; renderImgs(); colors = []; plain = {}; renderColors();
   $('#formTitle').textContent = 'Yeni ürün'; $('#cancelEdit').hidden = true;
 }
 $('#cancelEdit').onclick = resetForm;
@@ -180,6 +238,13 @@ $('#pform').onsubmit = async e => {
   const body = {
     name: $('#f_name').value, description: $('#f_desc').value, details: $('#f_details').value, price: $('#f_price').value,
     stock: $('#f_stock').value, category_id: $('#f_cat').value || null, gallery, active: $('#f_active').checked,
+    size_label: $('#f_sizelabel').value, sizes: parseSizes(),
+    colors: colors.filter(c => c.name.trim()).map(c => ({ name: c.name, gallery: c.gallery })),
+    variants: (() => {
+      const sizes = parseSizes(), cols = sizes.length ? sizes : [''];
+      return colors.length ? colors.filter(c => c.name.trim()).flatMap(c => cols.map(z => ({ color: c.name.trim(), size: z, stock: c.stock[z] || 0 })))
+        : (sizes.length ? sizes.map(z => ({ color: '', size: z, stock: plain[z] || 0 })) : []);
+    })(),
     sale_price: $('#f_sale').value, sale_start: $('#f_sstart').value || null, sale_end: $('#f_send').value || null,
   };
   await (editing ? api('admin/products/' + editing, 'PUT', body) : api('admin/products', 'POST', body));
@@ -195,10 +260,17 @@ document.addEventListener('click', async e => {
     $('#f_active').checked = p.active;
     $('#f_sale').value = p.sale_price ?? ''; $('#f_sstart').value = p.sale_start || ''; $('#f_send').value = p.sale_end || '';
     gallery = p.gallery?.length ? [...p.gallery] : (p.image_id ? [p.image_id] : []); renderImgs();
+    $('#f_sizelabel').value = p.size_label || 'Boy'; $('#f_sizes').value = (p.sizes || []).join(', ');
+    const stockOf = (c, z) => p.variants.find(v => v.color === c && v.size === z)?.stock ?? 0;
+    colors = (p.colors || []).map(c => ({ name: c.name, gallery: [...c.gallery], stock: Object.fromEntries((p.sizes.length ? p.sizes : ['']).map(z => [z, stockOf(c.name, z)])) }));
+    plain = Object.fromEntries((p.sizes || []).map(z => [z, stockOf('', z)]));
+    renderColors();
     $('#formTitle').textContent = 'Ürünü düzenle'; $('#cancelEdit').hidden = false;
     scrollTo({ top: 0, behavior: 'smooth' });
   }
   if (d.main !== undefined) { const [x] = gallery.splice(+d.main, 1); gallery.unshift(x); renderImgs(); }
+  if (d.cdel !== undefined) { colors.splice(+d.cdel, 1); renderColors(); }
+  if (d.crm !== undefined) { const [i, j] = d.crm.split(':').map(Number); colors[i].gallery.splice(j, 1); renderColors(); }
   if (d.rmimg !== undefined) { gallery.splice(+d.rmimg, 1); renderImgs(); }
   if (d.del && confirm('Bu ürün silinsin mi?')) { await api('admin/products/' + d.del, 'DELETE'); loadProducts(); }
   if (d.delcat && confirm('Kategori silinsin mi? (Ürünler kategorisiz kalır)')) { await api('admin/categories/' + d.delcat, 'DELETE'); loadCats(); loadProducts(); }
@@ -211,12 +283,16 @@ async function loadOrders() {
   $('#otable').innerHTML = rows.map(o => `<tr>
     <td>${o.id}<br><small>${new Date(o.created_at).toLocaleString('tr-TR')}</small></td>
     <td>${esc(o.customer_name)}<br><small>${esc(o.phone)}<br>${esc(o.address)}${o.note ? '<br><em>' + esc(o.note) + '</em>' : ''}</small></td>
-    <td>${o.items.map(i => `${i.qty}× ${esc(i.name)}`).join('<br>')}</td>
+    <td>${o.items.map(i => `${i.qty}× ${esc(i.name)}${i.color || i.size ? ' <small>(' + esc([i.color, i.size].filter(Boolean).join(' · ')) + ')</small>' : ''}`).join('<br>')}</td>
     <td>${tl(o.total)}</td>
     <td><select data-status="${o.id}">${statuses.map(s => `<option ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')
     || '<tr><td colspan="5">Henüz sipariş yok.</td></tr>';
 }
 document.addEventListener('change', async e => {
+  if (e.target.dataset.catimg) {
+    const image_id = await uploadFile(e.target.files[0]);
+    await api('admin/categories/' + e.target.dataset.catimg, 'PUT', { image_id }); toast('Görsel güncellendi'); return loadCats();
+  }
   if (e.target.dataset.status) { await api('admin/orders/' + e.target.dataset.status, 'PUT', { status: e.target.value }); toast('Durum güncellendi'); }
 });
 

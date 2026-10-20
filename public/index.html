@@ -21,6 +21,11 @@
   <img src="/hero.png" alt="Karnaval Kırtasiye">
 </div></section>
 
+<div class="wrap catsec">
+  <h2 class="sec" id="kategoriler">Kategoriler</h2>
+  <div class="cats" id="chips"></div>
+</div>
+
 <div class="wrap features">
   <div><svg class="ic" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2 2 0 013 3L8 19l-4 1z"/><path d="M14 7l3 3"/></svg><span><b>Geniş çeşit</b>İhtiyacınız olan her şey</span></div>
   <div><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z"/></svg><span><b>Kaliteli ürünler</b>Özenle seçilmiş markalar</span></div>
@@ -29,10 +34,7 @@
 </div>
 
 <main class="wrap">
-  <h2 class="sec" id="kategoriler">Kategorilere göre alışveriş</h2>
-  <div class="cats" id="chips"></div>
-
-  <h2 class="sec" id="urunler">Öne çıkan ürünler</h2>
+  <h2 class="sec" id="urunler"><span id="listTitle">Öne çıkan ürünler</span> <a href="#" id="clearCat" class="clear" hidden>Tüm ürünleri göster</a></h2>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden>Ürün bulunamadı.</div>
   <div class="more"><button class="btn ghost" id="moreBtn" hidden>Tüm ürünler</button></div>
@@ -46,13 +48,14 @@
 
 <script src="/shop.js"></script>
 <script>
-let products = [], cat = '', showAll = false;
+let products = [], cat = '', showAll = false, catList = [];
 const PREVIEW = 6;
 const params = new URLSearchParams(location.search);
+if (params.get('category')) cat = params.get('category');
 if (params.get('q')) { $('#q').value = params.get('q'); $('#q').classList.add('open'); }
 
 async function loadCats() {
-  const cats = await (await fetch('/api/categories')).json();
+  const cats = catList = await (await fetch('/api/categories')).json();
   $('#chips').style.display = cats.length ? '' : 'none';
   $('#kategoriler').style.display = cats.length ? '' : 'none';
   $('#chips').innerHTML = [{ id: '', name: 'Tümü', n: null }, ...cats].map(c => `
@@ -71,6 +74,8 @@ async function loadProducts() {
   renderProducts();
 }
 function renderProducts() {
+  const cn = catList.find(c => String(c.id) === cat)?.name;
+  $('#listTitle').textContent = cn || 'Öne çıkan ürünler'; $('#clearCat').hidden = !cn;
   const filtered = cat || $('#q').value.trim();
   const list = (showAll || filtered) ? products : products.slice(0, PREVIEW);
   $('#empty').hidden = products.length > 0;
@@ -94,13 +99,14 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-id],[data-add]'); if (!t) return;
   const d = t.dataset;
   if (d.id !== undefined) { cat = d.id; loadCats(); loadProducts(); $('#urunler').scrollIntoView({ behavior: 'smooth' }); }
-  if (d.add) addToCart(products.find(p => p.id == d.add));
+  if (d.add) { const p = products.find(p => p.id == d.add); if (p.variants?.length) location.href = '/urun.html?id=' + p.id; else addToCart(p); }
 });
+$('#clearCat').onclick = e => { e.preventDefault(); cat = ''; loadCats(); loadProducts(); };
 $('#moreBtn').onclick = () => { showAll = true; renderProducts(); };
 let timer; $('#q').oninput = () => { clearTimeout(timer); timer = setTimeout(loadProducts, 250); };
 const onOrderDone = loadProducts;
 
-(async () => { await loadCats(); await loadProducts(); })();
+(async () => { await loadCats(); await loadProducts(); if (cat) $('#urunler').scrollIntoView(); })();
 </script>
 </body>
 </html>

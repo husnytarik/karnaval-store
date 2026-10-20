@@ -10,17 +10,19 @@ const priceHtml = p => p.on_sale
 
 function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2800); }
 
-// ---- sepet: { [ürünId]: { q: adet, n: ad, p: fiyat, i: görselId } } ----
+// ---- sepet: { ['ürünId|renk|boy']: { id, c: renk, s: boy, q: adet, n: ad, p: fiyat, i: görselId } } ----
 let cart = {};
 try {
   const raw = JSON.parse(localStorage.getItem('cart2') || '{}');
-  for (const [id, v] of Object.entries(raw)) if (v && v.q > 0) cart[id] = v;
+  for (const [k, v] of Object.entries(raw)) if (v && v.q > 0) cart[k] = { id: +k.split('|')[0], c: '', s: '', ...v };
 } catch {}
 function saveCart() { try { localStorage.setItem('cart2', JSON.stringify(cart)); } catch {} renderCart(); }
-function addToCart(p, qty = 1) {
-  const cur = cart[p.id]?.q || 0;
-  if (cur + qty > p.stock) return toast(`Stokta yalnızca ${p.stock} adet var`);
-  cart[p.id] = { q: cur + qty, n: p.name, p: p.current_price, i: p.image_id };
+function addToCart(p, qty = 1, v) {
+  const key = `${p.id}|${v?.color || ''}|${v?.size || ''}`;
+  const stock = v ? v.stock : p.stock;
+  const cur = cart[key]?.q || 0;
+  if (cur + qty > stock) return toast(`Stokta yalnızca ${stock} adet var`);
+  cart[key] = { id: p.id, c: v?.color || '', s: v?.size || '', q: cur + qty, n: p.name, p: p.current_price, i: v?.image || p.image_id };
   saveCart(); toast('Sepete eklendi');
 }
 function renderCart() {
@@ -32,9 +34,9 @@ function renderCart() {
   $('#cartLines').innerHTML = ids.length ? ids.map(id => {
     const c = cart[id]; total += c.p * c.q;
     return `<div class="line">
-      <a href="/urun.html?id=${id}" class="lthumb ${c.i ? '' : 'ph'}" ${c.i ? `style="background-image:url(${imgUrl(c.i)})"` : ''}></a>
-      <span class="n">${esc(c.n)}<br><small>${tl(c.p)}</small></span>
-      <span class="qty"><button data-dec="${id}">−</button>${c.q}<button data-inc="${id}">+</button></span></div>`;
+      <a href="/urun.html?id=${c.id}" class="lthumb ${c.i ? '' : 'ph'}" ${c.i ? `style="background-image:url(${imgUrl(c.i)})"` : ''}></a>
+      <span class="n">${esc(c.n)}${c.c || c.s ? `<br><small>${esc([c.c, c.s].filter(Boolean).join(' · '))}</small>` : ''}<br><small>${tl(c.p)}</small></span>
+      <span class="qty"><button data-dec="${esc(id)}">−</button>${c.q}<button data-inc="${esc(id)}">+</button></span></div>`;
   }).join('') : '<div class="empty">Sepetiniz boş.</div>';
   $('#cartTotal').textContent = tl(total);
 }
@@ -91,7 +93,7 @@ $('#q').addEventListener('keydown', e => {
 
 $('#orderForm').onsubmit = async e => {
   e.preventDefault();
-  const items = Object.entries(cart).map(([id, c]) => ({ id: +id, qty: c.q }));
+  const items = Object.values(cart).map(c => ({ id: c.id, qty: c.q, color: c.c, size: c.s }));
   if (!items.length) return toast('Sepet boş');
   const body = { ...Object.fromEntries(new FormData(e.target)), items };
   const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

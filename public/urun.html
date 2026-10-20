@@ -24,6 +24,8 @@
       <div class="pprice" id="pPrice"></div>
       <div class="sale-note" id="saleNote" hidden></div>
       <p class="pshort" id="pShort"></p>
+      <div class="opt" id="colorBox" hidden><div class="olabel">Renk: <b id="colorName"></b></div><div class="chips" id="colorChips"></div></div>
+      <div class="opt" id="sizeBox" hidden><div class="olabel"><span id="sizeLabel">Boy</span>: <b id="sizeName"></b></div><div class="chips" id="sizeChips"></div></div>
       <div class="stock" id="pStock"></div>
       <div class="buy" id="buy">
         <div class="qty big"><button id="minus">−</button><span id="qtyVal">1</span><button id="plus">+</button></div>
@@ -40,7 +42,7 @@
 
 <script src="/shop.js"></script>
 <script>
-let product = null, qty = 1;
+let product = null, qty = 1, color = '', size = '';
 const id = new URLSearchParams(location.search).get('id');
 
 function trDate(s) { return new Date(s + 'T00:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }); }
@@ -48,6 +50,38 @@ function show(i) {
   const m = $('#mainImg');
   m.classList.remove('ph'); m.style.backgroundImage = `url(${imgUrl(i)})`;
   document.querySelectorAll('.thumbs button').forEach(b => b.classList.toggle('on', b.dataset.img == i));
+}
+const variantOf = (c, z) => product.variants.find(v => v.color === c && v.size === z);
+const colorImgs = c => product.colors.find(x => x.name === c)?.gallery || [];
+const baseImgs = () => product.gallery?.length ? product.gallery : (product.image_id ? [product.image_id] : []);
+// seçili renge ait fotoğraflar; renk fotoğrafı yoksa ürünün genel fotoğrafları
+function renderGallery() {
+  const imgs = colorImgs(color).length ? colorImgs(color) : baseImgs();
+  if (imgs.length) show(imgs[0]);
+  $('#thumbs').innerHTML = imgs.length > 1 ? imgs.map(i => `<button data-img="${i}" class="${i === imgs[0] ? 'on' : ''}" style="background-image:url(${imgUrl(i)})"></button>`).join('') : '';
+}
+function renderOptions() {
+  const p = product, hasV = p.variants.length > 0;
+  const colorStock = c => p.variants.filter(v => v.color === c).reduce((a, v) => a + v.stock, 0);
+  $('#colorBox').hidden = !p.colors.length;
+  $('#colorName').textContent = color;
+  $('#colorChips').innerHTML = p.colors.map(c => {
+    const t = c.gallery[0];
+    return `<button type="button" class="chip ${c.name === color ? 'on' : ''} ${colorStock(c.name) ? '' : 'na'}" data-color="${esc(c.name)}" title="${esc(c.name)}">${t ? `<i style="background-image:url(${imgUrl(t)})"></i>` : ''}${esc(c.name)}</button>`;
+  }).join('');
+  $('#sizeBox').hidden = !p.sizes.length;
+  $('#sizeLabel').textContent = p.size_label || 'Boy';
+  $('#sizeName').textContent = size;
+  $('#sizeChips').innerHTML = p.sizes.map(z => `<button type="button" class="chip ${z === size ? 'on' : ''} ${(variantOf(color, z)?.stock || 0) ? '' : 'na'}" data-size="${esc(z)}">${esc(z)}</button>`).join('');
+  const stock = hasV ? (variantOf(color, size)?.stock || 0) : p.stock;
+  qty = Math.min(Math.max(1, qty), Math.max(1, stock));
+  $('#qtyVal').textContent = qty;
+  if (stock > 0) {
+    $('#pStock').textContent = stock <= 5 ? `Son ${stock} adet` : 'Stokta var';
+    $('#pStock').className = 'stock ok'; $('#buy').hidden = false;
+  } else {
+    $('#pStock').textContent = hasV ? 'Bu seçenek tükendi' : 'Tükendi'; $('#pStock').className = 'stock out'; $('#buy').hidden = true;
+  }
 }
 async function load() {
   const res = id ? await fetch('/api/products/' + encodeURIComponent(id)) : { ok: false };
@@ -62,24 +96,30 @@ async function load() {
   $('#pPrice').innerHTML = priceHtml(p) + (p.on_sale ? ` <span class="tag inline">%${discountPct(p)} indirim</span>` : '');
   if (p.on_sale && p.sale_end) { $('#saleNote').hidden = false; $('#saleNote').textContent = `İndirim ${trDate(p.sale_end)} tarihine kadar geçerli.`; }
   $('#pShort').textContent = p.description;
-  const imgs = p.gallery?.length ? p.gallery : (p.image_id ? [p.image_id] : []);
-  if (imgs.length) show(imgs[0]);
-  $('#thumbs').innerHTML = imgs.length > 1 ? imgs.map(i => `<button data-img="${i}" class="${i === imgs[0] ? 'on' : ''}" style="background-image:url(${imgUrl(i)})"></button>`).join('') : '';
   $('#pDetails').innerHTML = p.details ? esc(p.details).replace(/\n/g, '<br>') : '<span style="color:var(--muted)">Bu ürün için ek detay girilmemiş.</span>';
-  if (p.stock > 0) {
-    $('#pStock').textContent = p.stock <= 5 ? `Son ${p.stock} adet` : 'Stokta var';
-    $('#pStock').className = 'stock ok';
-  } else {
-    $('#pStock').textContent = 'Tükendi'; $('#pStock').className = 'stock out'; $('#buy').hidden = true;
-  }
+  // ilk stokta olan seçeneği önceden seç
+  const first = p.variants.find(v => v.stock > 0) || p.variants[0];
+  color = first?.color || ''; size = first?.size || '';
+  renderGallery(); renderOptions();
   $('#product').hidden = false;
 }
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-color]'), z = e.target.closest('[data-size]');
+  if (c) {
+    color = c.dataset.color;
+    // yeni renkte seçili boy yoksa/tükendiyse stokta olan ilk boya geç
+    if (!(variantOf(color, size)?.stock > 0)) size = product.variants.find(v => v.color === color && v.stock > 0)?.size ?? size;
+    renderGallery(); renderOptions();
+  }
+  if (z) { size = z.dataset.size; renderOptions(); }
+});
 document.addEventListener('click', e => {
   const b = e.target.closest('.thumbs button'); if (b) show(b.dataset.img);
 });
 $('#minus').onclick = () => { qty = Math.max(1, qty - 1); $('#qtyVal').textContent = qty; };
-$('#plus').onclick = () => { qty = Math.min(product.stock, qty + 1); $('#qtyVal').textContent = qty; };
-$('#addBtn').onclick = () => addToCart(product, qty);
+const curStock = () => product.variants.length ? (variantOf(color, size)?.stock || 0) : product.stock;
+$('#plus').onclick = () => { qty = Math.min(curStock(), qty + 1); $('#qtyVal').textContent = qty; };
+$('#addBtn').onclick = () => addToCart(product, qty, product.variants.length ? { color, size, stock: curStock(), image: colorImgs(color)[0] } : undefined);
 const onOrderDone = load;
 load();
 </script>

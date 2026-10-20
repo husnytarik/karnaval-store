@@ -31,7 +31,8 @@ const onSale = `(p.sale_price IS NOT NULL AND p.sale_price < p.price AND (p.sale
 const currentPrice = `(CASE WHEN ${onSale} THEN p.sale_price ELSE p.price END)::float`;
 const productCols = `p.id, p.name, p.description, p.details, p.price::float AS price, p.sale_price::float AS sale_price,
   p.sale_start::text AS sale_start, p.sale_end::text AS sale_end, ${onSale} AS on_sale, ${currentPrice} AS current_price,
-  p.stock, p.category_id, c.name AS category, p.image_id, p.gallery, p.active`;
+  p.stock, p.category_id, c.name AS category, p.image_id, p.gallery, p.active,
+  p.size_label, p.colors, p.sizes, p.variants`;
 const productFrom = `FROM products p LEFT JOIN categories c ON c.id = p.category_id`;
 
 class Bad extends Error {}
@@ -53,23 +54,43 @@ function cleanProduct(b) {
     if (!(sale_price >= 0) || sale_price >= price) throw new Bad('İndirimli fiyat, normal fiyattan düşük olmalı');
     if (sale_start && sale_end && sale_end < sale_start) throw new Bad('İndirim bitiş tarihi başlangıçtan önce olamaz');
   } else { sale_start = null; sale_end = null; }
+  // renk / boy seçenekleri: renk×boy kombinasyonları sunucuda üretilir
+  const colors = [], seen = new Set();
+  for (const c of Array.isArray(b.colors) ? b.colors : []) {
+    const cn = String(c?.name || '').trim().slice(0, 40);
+    if (!cn || seen.has(cn.toLowerCase())) continue;
+    seen.add(cn.toLowerCase());
+    colors.push({ name: cn, gallery: [...new Set((Array.isArray(c.gallery) ? c.gallery : []).map(Number).filter(n => Number.isInteger(n) && n > 0))] });
+  }
+  const sizes = [...new Set((Array.isArray(b.sizes) ? b.sizes : []).map(x => String(x).trim().slice(0, 40)).filter(Boolean))];
+  const given = new Map((Array.isArray(b.variants) ? b.variants : []).map(v => [`${v.color || ''}|${v.size || ''}`, Math.max(0, parseInt(v.stock, 10) || 0)]));
+  const variants = [];
+  if (colors.length || sizes.length)
+    for (const c of colors.length ? colors.map(c => c.name) : ['']) for (const z of sizes.length ? sizes : [''])
+      variants.push({ color: c, size: z, stock: given.get(`${c}|${z}`) || 0 });
+  const mainImg = gallery[0] || colors.find(c => c.gallery.length)?.gallery[0] || null;
   return {
     name,
+    colors, sizes, variants,
+    size_label: String(b.size_label || '').trim().slice(0, 30) || 'Boy',
     description: String(b.description || '').trim(),
     details: String(b.details || '').trim(),
     price, sale_price, sale_start, sale_end,
-    stock: Math.max(0, parseInt(b.stock, 10) || 0),
+    stock: variants.length ? variants.reduce((a, v) => a + v.stock, 0) : Math.max(0, parseInt(b.stock, 10) || 0),
     category_id: b.category_id ? Number(b.category_id) : null,
     gallery,
-    image_id: gallery[0] || null,
+    image_id: mainImg,
     active: b.active !== false,
   };
 }
 
+const imagesOf = p => [...(p?.gallery || []), ...(p?.colors || []).flatMap(c => c.gallery || [])];
 async function dropOrphanImages(sql, ids) {
   if (!ids || !ids.length) return;
   await sql`DELETE FROM images WHERE id = ANY(${ids})
-    AND id NOT IN (SELECT unnest(gallery) FROM products)`;
+    AND id NOT IN (SELECT unnest(gallery) FROM products)
+    AND id NOT IN (SELECT image_id FROM categories WHERE image_id IS NOT NULL)
+    AND id NOT IN (SELECT g::int FROM products, jsonb_array_elements(colors) c, jsonb_array_elements_text(c->'gallery') g)`;
 }
 
 export async function onRequest({ request, env }) {
@@ -98,7 +119,7 @@ export async function onRequest({ request, env }) {
 
     if (route === 'categories' && method === 'GET')
       return json(await sql`SELECT c.id, c.name,
-        (SELECT p.image_id FROM products p WHERE p.category_id = c.id AND p.active AND p.image_id IS NOT NULL ORDER BY p.created_at DESC LIMIT 1) AS image_id,
+        COALESCE(c.image_id, (SELECT p.image_id FROM products p WHERE p.category_id = c.id AND p.active AND p.image_id IS NOT NULL ORDER BY p.created_at DESC LIMIT 1)) AS image_id,
         (SELECT count(*)::int FROM products p WHERE p.category_id = c.id AND p.active) AS n
         FROM categories c ORDER BY c.name`);
 
@@ -134,25 +155,43 @@ export async function onRequest({ request, env }) {
       const address = String(b.address || '').trim();
       if (!name || !phone || !address) return fail('Ad, telefon ve adres gerekli');
       if (!Array.isArray(b.items) || !b.items.length) return fail('Sepet boş');
-      const wanted = new Map();
+      const lines = new Map();
       for (const it of b.items) {
-        const id = Number(it.id), qty = parseInt(it.qty, 10);
-        if (id && qty > 0) wanted.set(id, (wanted.get(id) || 0) + qty);
+        const id = Number(it.id), qty = parseInt(it.qty, 10), color = String(it.color || ''), size = String(it.size || '');
+        if (!id || !(qty > 0)) continue;
+        const k = `${id}|${color}|${size}`;
+        lines.set(k, { id, color, size, qty: (lines.get(k)?.qty || 0) + qty });
       }
-      const rows = await sql.query(`SELECT p.id, p.name, ${currentPrice} AS price, p.stock FROM products p WHERE p.active AND p.id = ANY($1::int[])`, [[...wanted.keys()]]);
-      const items = [];
+      const rows = await sql.query(`SELECT p.id, p.name, ${currentPrice} AS price, p.stock, p.size_label, p.variants FROM products p WHERE p.active AND p.id = ANY($1::int[])`, [[...new Set([...lines.values()].map(l => l.id))]]);
+      const items = [], touched = new Map();
       let total = 0;
-      for (const [id, qty] of wanted) {
-        const p = rows.find(r => r.id === id);
+      for (const l of lines.values()) {
+        const p = rows.find(r => r.id === l.id);
         if (!p) return fail('Sepetteki bir ürün artık satışta değil');
-        if (qty > p.stock) return fail(`"${p.name}" için yeterli stok yok (kalan: ${p.stock})`);
-        items.push({ id, name: p.name, price: p.price, qty });
-        total += p.price * qty;
+        const t = touched.get(p.id) || { p, dec: new Map(), qty: 0 };
+        touched.set(p.id, t);
+        let left = p.stock;
+        if (p.variants.length) {
+          const v = p.variants.find(v => v.color === l.color && v.size === l.size);
+          if (!v) return fail(`"${p.name}" için seçilen seçenek artık mevcut değil`);
+          left = v.stock;
+          t.dec.set(`${l.color}|${l.size}`, l.qty);
+        }
+        t.qty += l.qty;
+        if (l.qty > left) return fail(`"${p.name}${l.color ? ' · ' + l.color : ''}${l.size ? ' · ' + l.size : ''}" için yeterli stok yok (kalan: ${left})`);
+        items.push({ id: p.id, name: p.name, price: p.price, qty: l.qty, color: l.color, size: l.size, size_label: p.size_label });
+        total += p.price * l.qty;
       }
+      for (const t of touched.values()) if (!t.p.variants.length && t.qty > t.p.stock) return fail(`"${t.p.name}" için yeterli stok yok (kalan: ${t.p.stock})`);
       const [order] = await sql`INSERT INTO orders (customer_name, phone, address, note, items, total)
         VALUES (${name}, ${phone}, ${address}, ${String(b.note || '').trim()}, ${JSON.stringify(items)}::jsonb, ${total})
         RETURNING id`;
-      for (const it of items) await sql`UPDATE products SET stock = GREATEST(stock - ${it.qty}, 0) WHERE id = ${it.id}`;
+      for (const t of touched.values()) {
+        if (t.p.variants.length) {
+          const vs = t.p.variants.map(v => ({ ...v, stock: Math.max(0, v.stock - (t.dec.get(`${v.color}|${v.size}`) || 0)) }));
+          await sql`UPDATE products SET variants = ${JSON.stringify(vs)}::jsonb, stock = ${vs.reduce((a, v) => a + v.stock, 0)} WHERE id = ${t.p.id}`;
+        } else await sql`UPDATE products SET stock = GREATEST(stock - ${t.qty}, 0) WHERE id = ${t.p.id}`;
+      }
       return json({ ok: true, id: order.id }, 201);
     }
 
@@ -168,36 +207,51 @@ export async function onRequest({ request, env }) {
           return json(await sql.query(`SELECT ${productCols} ${productFrom} ORDER BY p.created_at DESC`));
         if (!id && method === 'POST') {
           const p = cleanProduct(await body());
-          const [row] = await sql`INSERT INTO products (name, description, details, price, sale_price, sale_start, sale_end, stock, category_id, image_id, gallery, active)
-            VALUES (${p.name}, ${p.description}, ${p.details}, ${p.price}, ${p.sale_price}, ${p.sale_start}, ${p.sale_end}, ${p.stock}, ${p.category_id}, ${p.image_id}, ${p.gallery}, ${p.active}) RETURNING id`;
+          const [row] = await sql`INSERT INTO products (name, description, details, price, sale_price, sale_start, sale_end, stock, category_id, image_id, gallery, active, size_label, colors, sizes, variants)
+            VALUES (${p.name}, ${p.description}, ${p.details}, ${p.price}, ${p.sale_price}, ${p.sale_start}, ${p.sale_end}, ${p.stock}, ${p.category_id}, ${p.image_id}, ${p.gallery}, ${p.active}, ${p.size_label}, ${JSON.stringify(p.colors)}::jsonb, ${JSON.stringify(p.sizes)}::jsonb, ${JSON.stringify(p.variants)}::jsonb) RETURNING id`;
           return json(row, 201);
         }
         if (id && method === 'PUT') {
           const p = cleanProduct(await body());
-          const [old] = await sql`SELECT gallery FROM products WHERE id=${Number(id)}`;
+          const [old] = await sql`SELECT gallery, colors FROM products WHERE id=${Number(id)}`;
           await sql`UPDATE products SET name=${p.name}, description=${p.description}, details=${p.details}, price=${p.price},
             sale_price=${p.sale_price}, sale_start=${p.sale_start}, sale_end=${p.sale_end}, stock=${p.stock},
-            category_id=${p.category_id}, image_id=${p.image_id}, gallery=${p.gallery}, active=${p.active} WHERE id=${Number(id)}`;
-          await dropOrphanImages(sql, (old?.gallery || []).filter(g => !p.gallery.includes(g)));
+            category_id=${p.category_id}, image_id=${p.image_id}, gallery=${p.gallery}, active=${p.active},
+            size_label=${p.size_label}, colors=${JSON.stringify(p.colors)}::jsonb, sizes=${JSON.stringify(p.sizes)}::jsonb, variants=${JSON.stringify(p.variants)}::jsonb WHERE id=${Number(id)}`;
+          const keep = new Set(imagesOf(p));
+          await dropOrphanImages(sql, imagesOf(old).filter(g => !keep.has(g)));
           return json({ ok: true });
         }
         if (id && method === 'DELETE') {
-          const [old] = await sql`SELECT gallery FROM products WHERE id=${Number(id)}`;
+          const [old] = await sql`SELECT gallery, colors FROM products WHERE id=${Number(id)}`;
           await sql`DELETE FROM products WHERE id=${Number(id)}`;
-          await dropOrphanImages(sql, old?.gallery);
+          await dropOrphanImages(sql, imagesOf(old));
           return json({ ok: true });
         }
       }
 
       if (res === 'categories') {
         if (!id && method === 'POST') {
-          const name = String((await body()).name || '').trim();
+          const b = await body();
+          const name = String(b.name || '').trim();
           if (!name) return fail('Kategori adı gerekli');
-          const [row] = await sql`INSERT INTO categories (name) VALUES (${name}) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id, name`;
+          const [row] = await sql`INSERT INTO categories (name, image_id) VALUES (${name}, ${Number(b.image_id) || null}) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name, image_id = COALESCE(EXCLUDED.image_id, categories.image_id) RETURNING id, name`;
           return json(row, 201);
         }
+        if (id && method === 'PUT') {
+          const b = await body();
+          const [old] = await sql`SELECT image_id FROM categories WHERE id=${Number(id)}`;
+          if (!old) return fail('Kategori bulunamadı', 404);
+          const name = String(b.name || '').trim();
+          const img = b.image_id === null ? null : (Number(b.image_id) || old.image_id);
+          await sql`UPDATE categories SET name = COALESCE(NULLIF(${name}, ''), name), image_id = ${img} WHERE id=${Number(id)}`;
+          if (old.image_id && old.image_id !== img) await dropOrphanImages(sql, [old.image_id]);
+          return json({ ok: true });
+        }
         if (id && method === 'DELETE') {
+          const [old] = await sql`SELECT image_id FROM categories WHERE id=${Number(id)}`;
           await sql`DELETE FROM categories WHERE id=${Number(id)}`;
+          if (old?.image_id) await dropOrphanImages(sql, [old.image_id]);
           return json({ ok: true });
         }
       }
