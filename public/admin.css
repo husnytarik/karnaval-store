@@ -85,3 +85,13 @@ body.adm{background:#f6f4ef;font-size:15px}
 .catform label{margin-top:0}
 
 @media(max-width:860px){.fgrid{grid-template-columns:1fr}.card2 .r2{grid-template-columns:1fr}}
+
+/* telefon: ürün listesi ekrana sığsın (satıra tıklamak düzenlemeyi açar) */
+@media(max-width:720px){
+  .adm main.wrap{padding-left:12px;padding-right:12px}
+  .adm th,.adm td{padding:8px 6px}
+  .adm td img,.adm .thumb-ph{width:34px;height:34px}
+  .acts button{display:none}
+  .adm td:first-child{width:46px}
+  .bar input[type=search]{max-width:none}
+}
