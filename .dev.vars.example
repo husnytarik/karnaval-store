@@ -1,0 +1,3 @@
+DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
+ADMIN_PASSWORD=degistir-beni
+SESSION_SECRET=uzun-rastgele-bir-metin

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kırtasiye</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="/">✏️ Kırtasiye</a>
+  <input class="search" id="q" type="search" placeholder="Ürün ara…">
+  <button class="btn cart-btn" id="cartBtn">Sepet (<span id="cartCount">0</span>)</button>
+</div></header>
+
+<main class="wrap">
+  <div class="chips" id="chips"></div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>Ürün bulunamadı.</div>
+</main>
+
+<div class="drawer" id="drawer"><aside>
+  <div class="row"><h2>Sepetim</h2><button class="btn ghost sm" id="closeCart">Kapat</button></div>
+  <div id="cartLines"></div>
+  <div class="row"><strong>Toplam</strong><span class="price" id="cartTotal"></span></div>
+  <form id="orderForm">
+    <label>Ad Soyad</label><input type="text" name="customer_name" required>
+    <label>Telefon</label><input type="tel" name="phone" required>
+    <label>Adres</label><textarea name="address" required></textarea>
+    <label>Not (isteğe bağlı)</label><input type="text" name="note">
+    <p style="margin:14px 0 0"><button class="btn" style="width:100%">Siparişi Ver</button></p>
+  </form>
+</aside></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const tl = n => n.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let products = [], cat = '', cart = JSON.parse(localStorage.getItem('cart') || '{}');
+
+function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2800); }
+const save = () => { localStorage.setItem('cart', JSON.stringify(cart)); renderCart(); };
+
+async function loadCats() {
+  const cats = await (await fetch('/api/categories')).json();
+  $('#chips').innerHTML = [{ id: '', name: 'Tümü' }, ...cats]
+    .map(c => `<button class="chip ${String(c.id) === cat ? 'on' : ''}" data-id="${c.id}">${esc(c.name)}</button>`).join('');
+}
+async function loadProducts() {
+  const p = new URLSearchParams();
+  if ($('#q').value.trim()) p.set('q', $('#q').value.trim());
+  if (cat) p.set('category', cat);
+  const res = await fetch('/api/products?' + p);
+  if (!res.ok) { $('#empty').hidden = false; $('#empty').textContent = (await res.json()).error; return; }
+  products = await res.json();
+  $('#empty').hidden = products.length > 0;
+  $('#empty').textContent = 'Ürün bulunamadı.';
+  $('#grid').innerHTML = products.map(p => `
+    <div class="card">
+      <div class="img" ${p.image_id ? `style="background-image:url(/api/images/${p.image_id})"` : ''}>${p.image_id ? '' : '📒'}</div>
+      <div class="info">
+        ${p.category ? `<span class="cat">${esc(p.category)}</span>` : ''}
+        <h3>${esc(p.name)}</h3>
+        <div class="desc">${esc(p.description)}</div>
+        <div class="row"><span class="price">${tl(p.price)}</span>
+          ${p.stock > 0 ? `<button class="btn sm" data-add="${p.id}">Sepete ekle</button>` : '<span class="out">Tükendi</span>'}
+        </div>
+      </div>
+    </div>`).join('');
+}
+const known = {};
+function renderCart() {
+  products.forEach(p => known[p.id] = p);
+  const ids = Object.keys(cart);
+  $('#cartCount').textContent = ids.reduce((a, i) => a + cart[i], 0);
+  let total = 0;
+  $('#cartLines').innerHTML = ids.length ? ids.map(id => {
+    const p = known[id]; if (!p) return '';
+    total += p.price * cart[id];
+    return `<div class="line"><span class="n">${esc(p.name)}<br><small>${tl(p.price)}</small></span>
+      <span class="qty"><button data-dec="${id}">−</button>${cart[id]}<button data-inc="${id}">+</button></span></div>`;
+  }).join('') : '<div class="empty">Sepetiniz boş.</div>';
+  $('#cartTotal').textContent = tl(total);
+}
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.dataset.id !== undefined && t.classList.contains('chip')) { cat = t.dataset.id; loadCats(); loadProducts(); }
+  if (t.dataset.add) { cart[t.dataset.add] = (cart[t.dataset.add] || 0) + 1; save(); toast('Sepete eklendi'); }
+  if (t.dataset.inc) { cart[t.dataset.inc]++; save(); }
+  if (t.dataset.dec) { if (--cart[t.dataset.dec] <= 0) delete cart[t.dataset.dec]; save(); }
+});
+$('#cartBtn').onclick = () => { renderCart(); $('#drawer').classList.add('open'); };
+$('#closeCart').onclick = () => $('#drawer').classList.remove('open');
+$('#drawer').onclick = e => { if (e.target.id === 'drawer') e.target.classList.remove('open'); };
+let timer; $('#q').oninput = () => { clearTimeout(timer); timer = setTimeout(loadProducts, 250); };
+
+$('#orderForm').onsubmit = async e => {
+  e.preventDefault();
+  const items = Object.entries(cart).map(([id, qty]) => ({ id: +id, qty }));
+  if (!items.length) return toast('Sepet boş');
+  const body = { ...Object.fromEntries(new FormData(e.target)), items };
+  const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await res.json();
+  if (!res.ok) return toast(d.error);
+  cart = {}; save(); e.target.reset(); $('#drawer').classList.remove('open');
+  toast(`Siparişiniz alındı (#${d.id}). Teşekkürler!`); loadProducts();
+};
+
+(async () => { await loadCats(); await loadProducts(); renderCart(); })();
+</script>
+</body>
+</html>

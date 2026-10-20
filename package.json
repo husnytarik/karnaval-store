@@ -1,0 +1,16 @@
+{
+  "name": "kirtasiye",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup-db": "node scripts/setup-db.mjs",
+    "dev": "wrangler pages dev public --compatibility-date=2025-01-01",
+    "deploy": "wrangler pages deploy public --project-name=kirtasiye"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

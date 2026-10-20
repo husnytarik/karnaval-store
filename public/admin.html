@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Yönetim Paneli</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="loginView" class="login" hidden>
+  <h2 style="margin-top:0">Yönetim Girişi</h2>
+  <form id="loginForm">
+    <label>Şifre</label><input type="password" id="pw" autofocus required>
+    <p><button class="btn" style="width:100%">Giriş</button></p>
+  </form>
+</div>
+
+<div id="appView" hidden>
+<header class="top"><div class="wrap">
+  <span class="logo">⚙️ Yönetim</span>
+  <a class="btn ghost sm" href="/" target="_blank">Siteyi gör</a>
+  <button class="btn ghost sm cart-btn" id="logout">Çıkış</button>
+</div></header>
+
+<main class="wrap">
+  <div class="tabs">
+    <button class="tab on" data-tab="products">Ürünler</button>
+    <button class="tab" data-tab="categories">Kategoriler</button>
+    <button class="tab" data-tab="orders">Siparişler</button>
+  </div>
+
+  <section id="products">
+    <div class="panel" id="formPanel">
+      <h3 id="formTitle" style="margin-top:0">Yeni ürün</h3>
+      <form id="pform">
+        <div class="two">
+          <div><label>Ürün adı</label><input type="text" id="f_name" required></div>
+          <div><label>Kategori</label><select id="f_cat"></select></div>
+          <div><label>Fiyat (₺)</label><input type="number" id="f_price" step="0.01" min="0" required></div>
+          <div><label>Stok adedi</label><input type="number" id="f_stock" min="0" value="0"></div>
+        </div>
+        <label>Açıklama</label><textarea id="f_desc"></textarea>
+        <label>Görsel</label>
+        <input type="file" id="f_file" accept="image/*">
+        <div class="preview" id="preview" hidden></div>
+        <label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input type="checkbox" id="f_active" checked> Sitede göster</label>
+        <p style="margin-bottom:0"><button class="btn" id="saveBtn">Kaydet</button>
+          <button type="button" class="btn ghost" id="cancelEdit" hidden>Vazgeç</button></p>
+      </form>
+    </div>
+    <div class="scroll"><table><thead><tr><th></th><th>Ürün</th><th>Kategori</th><th>Fiyat</th><th>Stok</th><th></th></tr></thead>
+      <tbody id="ptable"></tbody></table></div>
+  </section>
+
+  <section id="categories" hidden>
+    <div class="panel">
+      <form id="cform" style="display:flex;gap:8px"><input type="text" id="c_name" placeholder="Yeni kategori adı" required><button class="btn">Ekle</button></form>
+    </div>
+    <table><tbody id="ctable"></tbody></table>
+  </section>
+
+  <section id="orders" hidden>
+    <div class="scroll"><table><thead><tr><th>#</th><th>Müşteri</th><th>Ürünler</th><th>Toplam</th><th>Durum</th></tr></thead>
+      <tbody id="otable"></tbody></table></div>
+  </section>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const tl = n => Number(n).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2800); }
+async function api(path, method = 'GET', data) {
+  const res = await fetch('/api/' + path, { method, headers: { 'content-type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
+  const out = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== 'login') { showLogin(); throw new Error(out.error); }
+  if (!res.ok) { toast(out.error || 'Hata'); throw new Error(out.error); }
+  return out;
+}
+let cats = [], prods = [], editing = null, imageId = null;
+
+function showLogin() { $('#loginView').hidden = false; $('#appView').hidden = true; }
+async function showApp() { $('#loginView').hidden = true; $('#appView').hidden = false; await loadCats(); await loadProducts(); }
+
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault();
+  try { await api('login', 'POST', { password: $('#pw').value }); $('#pw').value = ''; showApp(); } catch {}
+};
+$('#logout').onclick = async () => { await api('logout', 'POST'); showLogin(); };
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+  ['products', 'categories', 'orders'].forEach(s => $('#' + s).hidden = s !== b.dataset.tab);
+  if (b.dataset.tab === 'orders') loadOrders();
+});
+
+// ---- kategoriler ----
+async function loadCats() {
+  cats = await (await fetch('/api/categories')).json();
+  $('#f_cat').innerHTML = '<option value="">— Kategorisiz —</option>' + cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('#ctable').innerHTML = cats.map(c => `<tr><td>${esc(c.name)}</td><td style="text-align:right"><button class="btn danger sm" data-delcat="${c.id}">Sil</button></td></tr>`).join('')
+    || '<tr><td>Henüz kategori yok.</td></tr>';
+}
+$('#cform').onsubmit = async e => {
+  e.preventDefault();
+  await api('admin/categories', 'POST', { name: $('#c_name').value }); $('#c_name').value = '';
+  await loadCats();
+};
+
+// ---- ürünler ----
+async function loadProducts() {
+  prods = await api('admin/products');
+  $('#ptable').innerHTML = prods.map(p => `<tr>
+    <td>${p.image_id ? `<img src="/api/images/${p.image_id}">` : '<div class="thumb-ph"></div>'}</td>
+    <td><strong>${esc(p.name)}</strong> ${p.active ? '' : '<span class="badge off">gizli</span>'}</td>
+    <td>${esc(p.category || '—')}</td><td>${tl(p.price)}</td><td>${p.stock}</td>
+    <td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-edit="${p.id}">Düzenle</button>
+      <button class="btn danger sm" data-del="${p.id}">Sil</button></td></tr>`).join('')
+    || '<tr><td colspan="6">Henüz ürün yok. Yukarıdan ilk ürünü ekleyin.</td></tr>';
+}
+function setPreview(id) {
+  imageId = id;
+  $('#preview').hidden = !id;
+  $('#preview').style.backgroundImage = id ? `url(/api/images/${id})` : '';
+}
+function resetForm() {
+  editing = null; $('#pform').reset(); setPreview(null);
+  $('#formTitle').textContent = 'Yeni ürün'; $('#cancelEdit').hidden = true;
+}
+$('#cancelEdit').onclick = resetForm;
+
+// görseli tarayıcıda küçültüp yükle (ücretsiz veritabanını şişirmemek için)
+$('#f_file').onchange = async e => {
+  const file = e.target.files[0]; if (!file) return;
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 900 / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+  cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+  const data = cv.toDataURL('image/jpeg', 0.82).split(',')[1];
+  const { id } = await api('admin/images', 'POST', { mime: 'image/jpeg', data });
+  setPreview(id);
+};
+
+$('#pform').onsubmit = async e => {
+  e.preventDefault();
+  const body = {
+    name: $('#f_name').value, description: $('#f_desc').value, price: $('#f_price').value,
+    stock: $('#f_stock').value, category_id: $('#f_cat').value || null, image_id: imageId, active: $('#f_active').checked,
+  };
+  await (editing ? api('admin/products/' + editing, 'PUT', body) : api('admin/products', 'POST', body));
+  toast('Kaydedildi'); resetForm(); loadProducts();
+};
+
+document.addEventListener('click', async e => {
+  const d = e.target.dataset;
+  if (d.edit) {
+    const p = prods.find(x => x.id == d.edit); editing = p.id;
+    $('#f_name').value = p.name; $('#f_desc').value = p.description; $('#f_price').value = p.price;
+    $('#f_stock').value = p.stock; $('#f_cat').value = p.category_id || ''; $('#f_active').checked = p.active;
+    setPreview(p.image_id);
+    $('#formTitle').textContent = 'Ürünü düzenle'; $('#cancelEdit').hidden = false;
+    scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  if (d.del && confirm('Bu ürün silinsin mi?')) { await api('admin/products/' + d.del, 'DELETE'); loadProducts(); }
+  if (d.delcat && confirm('Kategori silinsin mi? (Ürünler kategorisiz kalır)')) { await api('admin/categories/' + d.delcat, 'DELETE'); loadCats(); loadProducts(); }
+});
+
+// ---- siparişler ----
+const statuses = ['yeni', 'hazırlanıyor', 'kargoda', 'teslim edildi', 'iptal'];
+async function loadOrders() {
+  const rows = await api('admin/orders');
+  $('#otable').innerHTML = rows.map(o => `<tr>
+    <td>${o.id}<br><small>${new Date(o.created_at).toLocaleString('tr-TR')}</small></td>
+    <td>${esc(o.customer_name)}<br><small>${esc(o.phone)}<br>${esc(o.address)}${o.note ? '<br><em>' + esc(o.note) + '</em>' : ''}</small></td>
+    <td>${o.items.map(i => `${i.qty}× ${esc(i.name)}`).join('<br>')}</td>
+    <td>${tl(o.total)}</td>
+    <td><select data-status="${o.id}">${statuses.map(s => `<option ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')
+    || '<tr><td colspan="5">Henüz sipariş yok.</td></tr>';
+}
+document.addEventListener('change', async e => {
+  if (e.target.dataset.status) { await api('admin/orders/' + e.target.dataset.status, 'PUT', { status: e.target.value }); toast('Durum güncellendi'); }
+});
+
+fetch('/api/admin/me').then(r => r.ok ? showApp() : showLogin());
+</script>
+</body>
+</html>
