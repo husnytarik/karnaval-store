@@ -40,10 +40,25 @@
           <div><label>Fiyat (₺)</label><input type="number" id="f_price" step="0.01" min="0" required></div>
           <div><label>Stok adedi</label><input type="number" id="f_stock" min="0" value="0"></div>
         </div>
-        <label>Açıklama</label><textarea id="f_desc"></textarea>
-        <label>Görsel</label>
-        <input type="file" id="f_file" accept="image/*">
-        <div class="preview" id="preview" hidden></div>
+        <label>Kısa açıklama <small>(ürün kartında görünür)</small></label>
+        <textarea id="f_desc" style="min-height:60px"></textarea>
+        <label>Detaylı açıklama <small>(ürün sayfasında görünür; satır başları korunur)</small></label>
+        <textarea id="f_details" style="min-height:140px"></textarea>
+
+        <label>Fotoğraflar <small>(ilk fotoğraf ana görseldir; birden fazla seçebilirsiniz)</small></label>
+        <input type="file" id="f_file" accept="image/*" multiple>
+        <div class="imgs" id="imgs"></div>
+
+        <fieldset class="sale">
+          <legend>İndirim (isteğe bağlı)</legend>
+          <div class="three">
+            <div><label>İndirimli fiyat (₺)</label><input type="number" id="f_sale" step="0.01" min="0" placeholder="Boş = indirim yok"></div>
+            <div><label>Başlangıç tarihi</label><input type="date" id="f_sstart"></div>
+            <div><label>Bitiş tarihi</label><input type="date" id="f_send"></div>
+          </div>
+          <small style="color:var(--muted)">Tarihleri boş bırakırsanız indirim hemen başlar ve kaldırılana kadar sürer.</small>
+        </fieldset>
+
         <label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input type="checkbox" id="f_active" checked> Sitede göster</label>
         <p style="margin-bottom:0"><button class="btn" id="saveBtn">Kaydet</button>
           <button type="button" class="btn ghost" id="cancelEdit" hidden>Vazgeç</button></p>
@@ -80,7 +95,7 @@ async function api(path, method = 'GET', data) {
   if (!res.ok) { toast(out.error || 'Hata'); throw new Error(out.error); }
   return out;
 }
-let cats = [], prods = [], editing = null, imageId = null;
+let cats = [], prods = [], editing = null;
 
 function showLogin() { $('#loginView').hidden = false; $('#appView').hidden = true; }
 async function showApp() { $('#loginView').hidden = true; $('#appView').hidden = false; await loadCats(); await loadProducts(); }
@@ -110,45 +125,62 @@ $('#cform').onsubmit = async e => {
 };
 
 // ---- ürünler ----
+let gallery = [];
+function saleBadge(p) {
+  if (p.sale_price == null) return '';
+  if (p.on_sale) return ' <span class="badge sale">İndirimde</span>';
+  const t = new Date().toISOString().slice(0, 10);
+  if (p.sale_start && p.sale_start > t) return ' <span class="badge">İndirim ' + p.sale_start + '</span>';
+  return ' <span class="badge off">İndirim bitti</span>';
+}
 async function loadProducts() {
   prods = await api('admin/products');
   $('#ptable').innerHTML = prods.map(p => `<tr>
     <td>${p.image_id ? `<img src="/api/images/${p.image_id}">` : '<div class="thumb-ph"></div>'}</td>
     <td><strong>${esc(p.name)}</strong> ${p.active ? '' : '<span class="badge off">gizli</span>'}</td>
-    <td>${esc(p.category || '—')}</td><td>${tl(p.price)}</td><td>${p.stock}</td>
-    <td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-edit="${p.id}">Düzenle</button>
+    <td>${esc(p.category || '—')}</td>
+    <td>${p.on_sale ? `<s style="color:var(--muted)">${tl(p.price)}</s><br><strong>${tl(p.sale_price)}</strong>` : tl(p.price)}${saleBadge(p)}</td>
+    <td>${p.stock}</td>
+    <td style="text-align:right;white-space:nowrap"><a class="btn ghost sm" href="/urun.html?id=${p.id}" target="_blank">Gör</a>
+      <button class="btn ghost sm" data-edit="${p.id}">Düzenle</button>
       <button class="btn danger sm" data-del="${p.id}">Sil</button></td></tr>`).join('')
     || '<tr><td colspan="6">Henüz ürün yok. Yukarıdan ilk ürünü ekleyin.</td></tr>';
 }
-function setPreview(id) {
-  imageId = id;
-  $('#preview').hidden = !id;
-  $('#preview').style.backgroundImage = id ? `url(/api/images/${id})` : '';
+function renderImgs() {
+  $('#imgs').innerHTML = gallery.map((id, i) => `<div class="gi">
+    <div class="gimg" style="background-image:url(/api/images/${id})"></div>
+    <div class="gbtns">${i === 0 ? '<span class="badge sale">Ana</span>' : `<button type="button" class="btn ghost sm" data-main="${i}">Ana yap</button>`}
+      <button type="button" class="btn danger sm" data-rmimg="${i}">Kaldır</button></div></div>`).join('');
 }
 function resetForm() {
-  editing = null; $('#pform').reset(); setPreview(null);
+  editing = null; $('#pform').reset(); gallery = []; renderImgs();
   $('#formTitle').textContent = 'Yeni ürün'; $('#cancelEdit').hidden = true;
 }
 $('#cancelEdit').onclick = resetForm;
 
-// görseli tarayıcıda küçültüp yükle (ücretsiz veritabanını şişirmemek için)
-$('#f_file').onchange = async e => {
-  const file = e.target.files[0]; if (!file) return;
+// görselleri tarayıcıda küçültüp yükle (ücretsiz veritabanını şişirmemek için)
+async function uploadFile(file) {
   const bmp = await createImageBitmap(file);
-  const k = Math.min(1, 900 / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, 1000 / Math.max(bmp.width, bmp.height));
   const cv = document.createElement('canvas');
   cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
   cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
   const data = cv.toDataURL('image/jpeg', 0.82).split(',')[1];
-  const { id } = await api('admin/images', 'POST', { mime: 'image/jpeg', data });
-  setPreview(id);
+  return (await api('admin/images', 'POST', { mime: 'image/jpeg', data })).id;
+}
+$('#f_file').onchange = async e => {
+  const files = [...e.target.files]; if (!files.length) return;
+  toast('Yükleniyor…');
+  for (const f of files) { try { gallery.push(await uploadFile(f)); renderImgs(); } catch (err) { toast('Yüklenemedi: ' + f.name); } }
+  e.target.value = ''; toast('Fotoğraflar yüklendi');
 };
 
 $('#pform').onsubmit = async e => {
   e.preventDefault();
   const body = {
-    name: $('#f_name').value, description: $('#f_desc').value, price: $('#f_price').value,
-    stock: $('#f_stock').value, category_id: $('#f_cat').value || null, image_id: imageId, active: $('#f_active').checked,
+    name: $('#f_name').value, description: $('#f_desc').value, details: $('#f_details').value, price: $('#f_price').value,
+    stock: $('#f_stock').value, category_id: $('#f_cat').value || null, gallery, active: $('#f_active').checked,
+    sale_price: $('#f_sale').value, sale_start: $('#f_sstart').value || null, sale_end: $('#f_send').value || null,
   };
   await (editing ? api('admin/products/' + editing, 'PUT', body) : api('admin/products', 'POST', body));
   toast('Kaydedildi'); resetForm(); loadProducts();
@@ -158,12 +190,16 @@ document.addEventListener('click', async e => {
   const d = e.target.dataset;
   if (d.edit) {
     const p = prods.find(x => x.id == d.edit); editing = p.id;
-    $('#f_name').value = p.name; $('#f_desc').value = p.description; $('#f_price').value = p.price;
-    $('#f_stock').value = p.stock; $('#f_cat').value = p.category_id || ''; $('#f_active').checked = p.active;
-    setPreview(p.image_id);
+    $('#f_name').value = p.name; $('#f_desc').value = p.description; $('#f_details').value = p.details || '';
+    $('#f_price').value = p.price; $('#f_stock').value = p.stock; $('#f_cat').value = p.category_id || '';
+    $('#f_active').checked = p.active;
+    $('#f_sale').value = p.sale_price ?? ''; $('#f_sstart').value = p.sale_start || ''; $('#f_send').value = p.sale_end || '';
+    gallery = p.gallery?.length ? [...p.gallery] : (p.image_id ? [p.image_id] : []); renderImgs();
     $('#formTitle').textContent = 'Ürünü düzenle'; $('#cancelEdit').hidden = false;
     scrollTo({ top: 0, behavior: 'smooth' });
   }
+  if (d.main !== undefined) { const [x] = gallery.splice(+d.main, 1); gallery.unshift(x); renderImgs(); }
+  if (d.rmimg !== undefined) { gallery.splice(+d.rmimg, 1); renderImgs(); }
   if (d.del && confirm('Bu ürün silinsin mi?')) { await api('admin/products/' + d.del, 'DELETE'); loadProducts(); }
   if (d.delcat && confirm('Kategori silinsin mi? (Ürünler kategorisiz kalır)')) { await api('admin/categories/' + d.delcat, 'DELETE'); loadCats(); loadProducts(); }
 });

@@ -26,24 +26,50 @@ async function isAdmin(request, env) {
   return sig === (await sign(exp, env.SESSION_SECRET));
 }
 
-const productCols = `p.id, p.name, p.description, p.price::float AS price, p.stock, p.category_id,
-  c.name AS category, p.image_id, p.active`;
+const TODAY = `(now() AT TIME ZONE 'Europe/Istanbul')::date`;
+const onSale = `(p.sale_price IS NOT NULL AND p.sale_price < p.price AND (p.sale_start IS NULL OR ${TODAY} >= p.sale_start) AND (p.sale_end IS NULL OR ${TODAY} <= p.sale_end))`;
+const currentPrice = `(CASE WHEN ${onSale} THEN p.sale_price ELSE p.price END)::float`;
+const productCols = `p.id, p.name, p.description, p.details, p.price::float AS price, p.sale_price::float AS sale_price,
+  p.sale_start::text AS sale_start, p.sale_end::text AS sale_end, ${onSale} AS on_sale, ${currentPrice} AS current_price,
+  p.stock, p.category_id, c.name AS category, p.image_id, p.gallery, p.active`;
 const productFrom = `FROM products p LEFT JOIN categories c ON c.id = p.category_id`;
+
+class Bad extends Error {}
+const dateOrNull = v => {
+  if (!v) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Bad('Tarih biçimi geçersiz');
+  return v;
+};
 
 function cleanProduct(b) {
   const name = String(b.name || '').trim();
   const price = Number(b.price);
-  if (!name) throw new Error('Ürün adı gerekli');
-  if (!(price >= 0)) throw new Error('Geçerli bir fiyat girin');
+  if (!name) throw new Bad('Ürün adı gerekli');
+  if (!(price >= 0) || b.price === '' || b.price == null) throw new Bad('Geçerli bir fiyat girin');
+  const gallery = [...new Set((Array.isArray(b.gallery) ? b.gallery : []).map(Number).filter(n => Number.isInteger(n) && n > 0))];
+  let sale_price = b.sale_price === '' || b.sale_price == null ? null : Number(b.sale_price);
+  let sale_start = dateOrNull(b.sale_start), sale_end = dateOrNull(b.sale_end);
+  if (sale_price != null) {
+    if (!(sale_price >= 0) || sale_price >= price) throw new Bad('İndirimli fiyat, normal fiyattan düşük olmalı');
+    if (sale_start && sale_end && sale_end < sale_start) throw new Bad('İndirim bitiş tarihi başlangıçtan önce olamaz');
+  } else { sale_start = null; sale_end = null; }
   return {
     name,
     description: String(b.description || '').trim(),
-    price,
+    details: String(b.details || '').trim(),
+    price, sale_price, sale_start, sale_end,
     stock: Math.max(0, parseInt(b.stock, 10) || 0),
     category_id: b.category_id ? Number(b.category_id) : null,
-    image_id: b.image_id ? Number(b.image_id) : null,
+    gallery,
+    image_id: gallery[0] || null,
     active: b.active !== false,
   };
+}
+
+async function dropOrphanImages(sql, ids) {
+  if (!ids || !ids.length) return;
+  await sql`DELETE FROM images WHERE id = ANY(${ids})
+    AND id NOT IN (SELECT unnest(gallery) FROM products)`;
 }
 
 export async function onRequest({ request, env }) {
@@ -89,6 +115,11 @@ export async function onRequest({ request, env }) {
       return json(rows);
     }
 
+    if (parts[0] === 'products' && parts[1] && method === 'GET') {
+      const rows = await sql.query(`SELECT ${productCols} ${productFrom} WHERE p.active AND p.id = $1`, [Number(parts[1]) || 0]);
+      return rows[0] ? json(rows[0]) : fail('Ürün bulunamadı', 404);
+    }
+
     if (parts[0] === 'images' && parts[1] && method === 'GET') {
       const [img] = await sql`SELECT mime, data FROM images WHERE id = ${Number(parts[1])}`;
       if (!img) return new Response('Yok', { status: 404 });
@@ -108,7 +139,7 @@ export async function onRequest({ request, env }) {
         const id = Number(it.id), qty = parseInt(it.qty, 10);
         if (id && qty > 0) wanted.set(id, (wanted.get(id) || 0) + qty);
       }
-      const rows = await sql`SELECT id, name, price::float AS price, stock FROM products WHERE active AND id = ANY(${[...wanted.keys()]})`;
+      const rows = await sql.query(`SELECT p.id, p.name, ${currentPrice} AS price, p.stock FROM products p WHERE p.active AND p.id = ANY($1::int[])`, [[...wanted.keys()]]);
       const items = [];
       let total = 0;
       for (const [id, qty] of wanted) {
@@ -137,19 +168,23 @@ export async function onRequest({ request, env }) {
           return json(await sql.query(`SELECT ${productCols} ${productFrom} ORDER BY p.created_at DESC`));
         if (!id && method === 'POST') {
           const p = cleanProduct(await body());
-          const [row] = await sql`INSERT INTO products (name, description, price, stock, category_id, image_id, active)
-            VALUES (${p.name}, ${p.description}, ${p.price}, ${p.stock}, ${p.category_id}, ${p.image_id}, ${p.active}) RETURNING id`;
+          const [row] = await sql`INSERT INTO products (name, description, details, price, sale_price, sale_start, sale_end, stock, category_id, image_id, gallery, active)
+            VALUES (${p.name}, ${p.description}, ${p.details}, ${p.price}, ${p.sale_price}, ${p.sale_start}, ${p.sale_end}, ${p.stock}, ${p.category_id}, ${p.image_id}, ${p.gallery}, ${p.active}) RETURNING id`;
           return json(row, 201);
         }
         if (id && method === 'PUT') {
           const p = cleanProduct(await body());
-          await sql`UPDATE products SET name=${p.name}, description=${p.description}, price=${p.price}, stock=${p.stock},
-            category_id=${p.category_id}, image_id=${p.image_id}, active=${p.active} WHERE id=${Number(id)}`;
+          const [old] = await sql`SELECT gallery FROM products WHERE id=${Number(id)}`;
+          await sql`UPDATE products SET name=${p.name}, description=${p.description}, details=${p.details}, price=${p.price},
+            sale_price=${p.sale_price}, sale_start=${p.sale_start}, sale_end=${p.sale_end}, stock=${p.stock},
+            category_id=${p.category_id}, image_id=${p.image_id}, gallery=${p.gallery}, active=${p.active} WHERE id=${Number(id)}`;
+          await dropOrphanImages(sql, (old?.gallery || []).filter(g => !p.gallery.includes(g)));
           return json({ ok: true });
         }
         if (id && method === 'DELETE') {
+          const [old] = await sql`SELECT gallery FROM products WHERE id=${Number(id)}`;
           await sql`DELETE FROM products WHERE id=${Number(id)}`;
-          await sql`DELETE FROM images WHERE id NOT IN (SELECT image_id FROM products WHERE image_id IS NOT NULL)`;
+          await dropOrphanImages(sql, old?.gallery);
           return json({ ok: true });
         }
       }
@@ -190,6 +225,6 @@ export async function onRequest({ request, env }) {
 
     return fail('Bulunamadı', 404);
   } catch (e) {
-    return fail(e.message || 'Sunucu hatası', e instanceof Error && /gerekli|Geçerli/.test(e.message) ? 400 : 500);
+    return fail(e.message || 'Sunucu hatası', e instanceof Bad ? 400 : 500);
   }
 }

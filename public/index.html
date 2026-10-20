@@ -11,17 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&display=swap&subset=latin-ext" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-<header class="top"><div class="wrap">
-  <a class="logo" href="/"><img src="/logo.png" alt="Karnaval Kırtasiye"></a>
-  <nav class="nav"><a href="#top" class="on">Anasayfa</a><a href="#kategoriler">Kategoriler</a><a href="#urunler">Ürünler</a><a href="#iletisim">İletişim</a></nav>
-  <div class="tools">
-    <input class="search" id="q" type="search" placeholder="Ürün ara…">
-    <button class="icon-btn" id="searchBtn" aria-label="Ara"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
-    <button class="icon-btn" id="cartBtn" aria-label="Sepet"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg><span class="count" id="cartCount">0</span></button>
-  </div>
-</div></header>
-
+<body data-page="home">
 <section class="hero" id="top"><div class="wrap">
   <div>
     <h1>Kırtasiyenin <span>en eğlenceli hali</span></h1>
@@ -53,39 +43,13 @@
   </div>
 </main>
 
-<footer class="foot" id="iletisim"><div class="wrap">
-  <div class="cols">
-    <div><img src="/logo.png" alt="Karnaval Kırtasiye"><br>Kalem, defter ve okul-ofis malzemeleri.</div>
-    <div><b>Hızlı bağlantılar</b><a href="#top">Anasayfa</a><a href="#kategoriler">Kategoriler</a><a href="#urunler">Ürünler</a></div>
-    <div><b>İletişim</b>Sipariş ve bilgi için bizimle iletişime geçin.</div>
-  </div>
-  <div class="copy">© <span id="yr"></span> Karnaval Kırtasiye</div>
-</div></footer>
 
-<div class="drawer" id="drawer"><aside>
-  <div class="row"><h2>Sepetim</h2><button class="btn ghost sm" id="closeCart">Kapat</button></div>
-  <div id="cartLines"></div>
-  <div class="row"><strong>Toplam</strong><span class="price" id="cartTotal"></span></div>
-  <form id="orderForm">
-    <label>Ad Soyad</label><input type="text" name="customer_name" required>
-    <label>Telefon</label><input type="tel" name="phone" required>
-    <label>Adres</label><textarea name="address" required></textarea>
-    <label>Not (isteğe bağlı)</label><input type="text" name="note">
-    <p style="margin:14px 0 0"><button class="btn" style="width:100%;justify-content:center">Siparişi ver</button></p>
-  </form>
-</aside></div>
-<div class="toast" id="toast"></div>
-
+<script src="/shop.js"></script>
 <script>
-const $ = s => document.querySelector(s);
-const tl = n => n.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-let products = [], cat = '', showAll = false, cart = JSON.parse(localStorage.getItem('cart') || '{}');
+let products = [], cat = '', showAll = false;
 const PREVIEW = 6;
-$('#yr').textContent = new Date().getFullYear();
-
-function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2800); }
-const save = () => { localStorage.setItem('cart', JSON.stringify(cart)); renderCart(); };
+const params = new URLSearchParams(location.search);
+if (params.get('q')) { $('#q').value = params.get('q'); $('#q').classList.add('open'); }
 
 async function loadCats() {
   const cats = await (await fetch('/api/categories')).json();
@@ -93,7 +57,7 @@ async function loadCats() {
   $('#kategoriler').style.display = cats.length ? '' : 'none';
   $('#chips').innerHTML = [{ id: '', name: 'Tümü', n: null }, ...cats].map(c => `
     <div class="cat-tile ${String(c.id) === cat ? 'on' : ''}" data-id="${c.id}">
-      <div class="pic ${c.image_id ? "" : "ph"}" ${c.image_id ? `style="background-image:url(/api/images/${c.image_id})"` : ""}></div>
+      <div class="pic ${c.image_id ? '' : 'ph'}" ${c.image_id ? `style="background-image:url(${imgUrl(c.image_id)})"` : ''}></div>
       <b>${esc(c.name)}</b>${c.n != null ? `<small>${c.n} ürün</small>` : '<small>Hepsini gör</small>'}
     </div>`).join('');
 }
@@ -111,62 +75,30 @@ function renderProducts() {
   const list = (showAll || filtered) ? products : products.slice(0, PREVIEW);
   $('#empty').hidden = products.length > 0;
   $('#empty').textContent = 'Ürün bulunamadı.';
-  $('#moreBtn').hidden = filtered || showAll || products.length <= PREVIEW;
+  $('#moreBtn').hidden = !!filtered || showAll || products.length <= PREVIEW;
   $('#grid').innerHTML = list.map(p => `
     <div class="card">
-      <div class="img ${p.image_id ? "" : "ph"}" ${p.image_id ? `style="background-image:url(/api/images/${p.image_id})"` : ""}></div>
+      <a class="img ${p.image_id ? '' : 'ph'}" href="/urun.html?id=${p.id}" ${p.image_id ? `style="background-image:url(${imgUrl(p.image_id)})"` : ''}>
+        ${p.on_sale ? `<span class="tag">%${discountPct(p)} indirim</span>` : ''}</a>
       <div class="info">
         ${p.category ? `<span class="cat">${esc(p.category)}</span>` : ''}
-        <h3>${esc(p.name)}</h3>
+        <h3><a href="/urun.html?id=${p.id}">${esc(p.name)}</a></h3>
         <div class="desc">${esc(p.description)}</div>
-        <div class="row"><span class="price">${tl(p.price)}</span>
+        <div class="row"><span>${priceHtml(p)}</span>
           ${p.stock > 0 ? `<button class="add" data-add="${p.id}" title="Sepete ekle">+</button>` : '<span class="out">Tükendi</span>'}
         </div>
       </div>
     </div>`).join('');
-  renderCart();
-}
-const known = {};
-function renderCart() {
-  products.forEach(p => known[p.id] = p);
-  const ids = Object.keys(cart);
-  const n = ids.reduce((a, i) => a + cart[i], 0);
-  $('#cartCount').textContent = n; $('#cartCount').style.display = n ? '' : 'none';
-  let total = 0;
-  $('#cartLines').innerHTML = ids.length ? ids.map(id => {
-    const p = known[id]; if (!p) return '';
-    total += p.price * cart[id];
-    return `<div class="line"><span class="n">${esc(p.name)}<br><small>${tl(p.price)}</small></span>
-      <span class="qty"><button data-dec="${id}">−</button>${cart[id]}<button data-inc="${id}">+</button></span></div>`;
-  }).join('') : '<div class="empty">Sepetiniz boş.</div>';
-  $('#cartTotal').textContent = tl(total);
 }
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-id],[data-add],[data-inc],[data-dec]'); if (!t) return;
+  const t = e.target.closest('[data-id],[data-add]'); if (!t) return;
   const d = t.dataset;
   if (d.id !== undefined) { cat = d.id; loadCats(); loadProducts(); $('#urunler').scrollIntoView({ behavior: 'smooth' }); }
-  if (d.add) { cart[d.add] = (cart[d.add] || 0) + 1; save(); toast('Sepete eklendi'); }
-  if (d.inc) { cart[d.inc]++; save(); }
-  if (d.dec) { if (--cart[d.dec] <= 0) delete cart[d.dec]; save(); }
+  if (d.add) addToCart(products.find(p => p.id == d.add));
 });
 $('#moreBtn').onclick = () => { showAll = true; renderProducts(); };
-$('#cartBtn').onclick = () => { renderCart(); $('#drawer').classList.add('open'); };
-$('#closeCart').onclick = () => $('#drawer').classList.remove('open');
-$('#drawer').onclick = e => { if (e.target.id === 'drawer') e.target.classList.remove('open'); };
-$('#searchBtn').onclick = () => { $('#q').classList.toggle('open'); if ($('#q').classList.contains('open')) $('#q').focus(); };
 let timer; $('#q').oninput = () => { clearTimeout(timer); timer = setTimeout(loadProducts, 250); };
-
-$('#orderForm').onsubmit = async e => {
-  e.preventDefault();
-  const items = Object.entries(cart).map(([id, qty]) => ({ id: +id, qty }));
-  if (!items.length) return toast('Sepet boş');
-  const body = { ...Object.fromEntries(new FormData(e.target)), items };
-  const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const d = await res.json();
-  if (!res.ok) return toast(d.error);
-  cart = {}; save(); e.target.reset(); $('#drawer').classList.remove('open');
-  toast(`Siparişiniz alındı (#${d.id}). Teşekkürler!`); loadProducts();
-};
+const onOrderDone = loadProducts;
 
 (async () => { await loadCats(); await loadProducts(); })();
 </script>

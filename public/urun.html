@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ürün · Karnaval Kırtasiye</title>
+<link rel="icon" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&display=swap&subset=latin-ext" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body data-page="product">
+<main class="wrap">
+  <nav class="crumbs"><a href="/">Anasayfa</a> / <span id="crumbCat"></span><span id="crumbName"></span></nav>
+  <div id="product" class="pdp" hidden>
+    <div class="gallery">
+      <div class="main-img ph" id="mainImg"></div>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+    <div class="pinfo">
+      <span class="cat" id="pCat"></span>
+      <h1 id="pName"></h1>
+      <div class="pprice" id="pPrice"></div>
+      <div class="sale-note" id="saleNote" hidden></div>
+      <p class="pshort" id="pShort"></p>
+      <div class="stock" id="pStock"></div>
+      <div class="buy" id="buy">
+        <div class="qty big"><button id="minus">−</button><span id="qtyVal">1</span><button id="plus">+</button></div>
+        <button class="btn lg" id="addBtn">Sepete ekle</button>
+      </div>
+    </div>
+    <section class="pdetail">
+      <h2>Ürün detayları</h2>
+      <div id="pDetails"></div>
+    </section>
+  </div>
+  <div class="empty" id="missing" hidden>Ürün bulunamadı. <a href="/">Anasayfaya dön</a></div>
+</main>
+
+<script src="/shop.js"></script>
+<script>
+let product = null, qty = 1;
+const id = new URLSearchParams(location.search).get('id');
+
+function trDate(s) { return new Date(s + 'T00:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }); }
+function show(i) {
+  const m = $('#mainImg');
+  m.classList.remove('ph'); m.style.backgroundImage = `url(${imgUrl(i)})`;
+  document.querySelectorAll('.thumbs button').forEach(b => b.classList.toggle('on', b.dataset.img == i));
+}
+async function load() {
+  const res = id ? await fetch('/api/products/' + encodeURIComponent(id)) : { ok: false };
+  if (!res.ok) { $('#missing').hidden = false; return; }
+  product = await res.json();
+  const p = product;
+  document.title = `${p.name} · Karnaval Kırtasiye`;
+  $('#crumbCat').innerHTML = p.category ? `<a href="/#urunler">${esc(p.category)}</a> / ` : '';
+  $('#crumbName').textContent = p.name;
+  $('#pCat').textContent = p.category || '';
+  $('#pName').textContent = p.name;
+  $('#pPrice').innerHTML = priceHtml(p) + (p.on_sale ? ` <span class="tag inline">%${discountPct(p)} indirim</span>` : '');
+  if (p.on_sale && p.sale_end) { $('#saleNote').hidden = false; $('#saleNote').textContent = `İndirim ${trDate(p.sale_end)} tarihine kadar geçerli.`; }
+  $('#pShort').textContent = p.description;
+  const imgs = p.gallery?.length ? p.gallery : (p.image_id ? [p.image_id] : []);
+  if (imgs.length) show(imgs[0]);
+  $('#thumbs').innerHTML = imgs.length > 1 ? imgs.map(i => `<button data-img="${i}" class="${i === imgs[0] ? 'on' : ''}" style="background-image:url(${imgUrl(i)})"></button>`).join('') : '';
+  $('#pDetails').innerHTML = p.details ? esc(p.details).replace(/\n/g, '<br>') : '<span style="color:var(--muted)">Bu ürün için ek detay girilmemiş.</span>';
+  if (p.stock > 0) {
+    $('#pStock').textContent = p.stock <= 5 ? `Son ${p.stock} adet` : 'Stokta var';
+    $('#pStock').className = 'stock ok';
+  } else {
+    $('#pStock').textContent = 'Tükendi'; $('#pStock').className = 'stock out'; $('#buy').hidden = true;
+  }
+  $('#product').hidden = false;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.thumbs button'); if (b) show(b.dataset.img);
+});
+$('#minus').onclick = () => { qty = Math.max(1, qty - 1); $('#qtyVal').textContent = qty; };
+$('#plus').onclick = () => { qty = Math.min(product.stock, qty + 1); $('#qtyVal').textContent = qty; };
+$('#addBtn').onclick = () => addToCart(product, qty);
+const onOrderDone = load;
+load();
+</script>
+</body>
+</html>
