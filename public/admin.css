@@ -1,0 +1,87 @@
+/* Yönetim paneli: sade, ince form düzeni (style.css üstüne) */
+body.adm{background:#f6f4ef;font-size:15px}
+.adm header.top.admin{background:#fff;position:static}
+.adm header.top.admin .wrap{height:56px;display:flex;align-items:center;gap:12px}
+.adm header.top.admin .logo img{height:38px}
+.adm .brand-t{font-size:.85rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.adm main.wrap{max-width:1080px;padding-bottom:90px}
+
+/* sekmeler */
+.adm .tabs{margin:14px 0 18px;gap:2px}
+.adm .tab{padding:9px 14px;font-size:.9rem}
+
+/* araç çubuğu */
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.bar input[type=search]{flex:1;max-width:320px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r);background:#fff;font-size:.9rem}
+.bar .sp{flex:1}
+
+/* ince inputlar */
+.adm input[type=text],.adm input[type=number],.adm input[type=date],.adm select,.adm textarea{padding:7px 10px;font-size:.9rem;border-radius:5px}
+.adm textarea{min-height:64px}
+.adm label{font-size:.78rem;margin:12px 0 4px;color:var(--muted);font-weight:500}
+.adm label small{font-weight:400;opacity:.8}
+.adm .btn{letter-spacing:.05em;padding:8px 16px;font-size:.78rem}
+.adm .btn.sm{padding:5px 10px;font-size:.7rem}
+.adm .btn.ghost{background:#fff}
+.hint{font-size:.76rem;color:var(--muted);margin-top:4px}
+
+/* liste tablosu */
+.adm table{font-size:.9rem}
+.adm th,.adm td{padding:8px 12px}
+.adm tr.row-click{cursor:pointer}.adm tr.row-click:hover td{background:#fcfaf6}
+.pname{font-weight:600}.psub{font-size:.76rem;color:var(--muted)}
+.adm td img,.adm .thumb-ph{width:40px;height:40px}
+.acts{text-align:right;white-space:nowrap}
+
+/* form yerleşimi */
+.fhead{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.fhead h2{margin:0;font-size:1.15rem;font-weight:600}
+.fhead a.back{color:var(--muted);text-decoration:none;font-size:.85rem}.fhead a.back:hover{color:var(--brand)}
+.fgrid{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+.fcol{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card2{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.card2 h3{margin:0 0 2px;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.card2 > label:first-of-type{margin-top:8px}
+.card2 .r2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}
+.card2 input[type=date]{min-width:0;padding:7px 6px}
+.switch{display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--ink);margin:8px 0 0;cursor:pointer}
+.switch input{width:auto;margin:0}
+.sub{margin-top:10px;padding-top:2px;border-top:1px dashed var(--line)}
+
+/* fotoğraflar */
+.thumbs2{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.th{width:92px;position:relative}
+.th .im{width:92px;height:92px;border-radius:6px;background:#f0ede6 center/cover;border:1px solid var(--line)}
+.th .x{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(34,37,79,.8);color:#fff;font-size:.8rem;line-height:1;cursor:pointer;padding:0}
+.th .main{display:block;text-align:center;font-size:.7rem;margin-top:4px;color:var(--muted)}
+.th .main.is{color:var(--brand);font-weight:600}
+.th button.main{background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;width:100%}
+.drop{display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px dashed #cfc9bb;border-radius:6px;padding:14px;margin-top:8px;color:var(--muted);font-size:.85rem;cursor:pointer;background:#fbfaf7}
+.drop:hover{border-color:var(--brand);color:var(--brand)}
+.drop input{display:none}
+
+/* renkler */
+.ccard{border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:10px;background:#fcfbf8}
+.ccard .crow{display:flex;gap:8px;align-items:center}
+.ccard .crow input[type=text]{flex:1}
+.ccard .thumbs2{margin-top:8px}
+.ccard .th,.ccard .th .im{width:64px}.ccard .th .im{height:64px}
+.vgrid{margin-top:6px;background:#fff}
+.vgrid input[type=number]{width:76px;padding:5px 8px}
+.vgrid th{background:#faf8f3}
+.vgrid td label{display:flex;gap:4px;align-items:center;margin:3px 0 0;font-size:.72rem}
+.vgrid td label input{width:auto}
+
+/* sabit kaydet çubuğu */
+.savebar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 0;z-index:10}
+.savebar .wrap{display:flex;gap:10px;align-items:center;max-width:1080px}
+.savebar .sp{flex:1}
+.btn.plain-danger{background:#fff;color:var(--danger);border-color:#e7c3bf}
+.btn.plain-danger:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
+
+/* kategoriler */
+.catform{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.catform > div{flex:1;min-width:200px}
+.catform label{margin-top:0}
+
+@media(max-width:860px){.fgrid{grid-template-columns:1fr}.card2 .r2{grid-template-columns:1fr}}
