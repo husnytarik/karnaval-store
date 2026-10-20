@@ -3,21 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kırtasiye</title>
+<title>Karnaval Kırtasiye</title>
+<meta name="description" content="Karnaval Kırtasiye - kalem, defter, okul ve ofis malzemeleri">
+<link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <a class="logo" href="/">✏️ Kırtasiye</a>
-  <input class="search" id="q" type="search" placeholder="Ürün ara…">
-  <button class="btn cart-btn" id="cartBtn">Sepet (<span id="cartCount">0</span>)</button>
+  <a class="logo" href="/"><img src="/logo.png" alt="Karnaval Kırtasiye"></a>
+  <nav class="nav"><a href="#top">Anasayfa</a><a href="#kategoriler">Kategoriler</a><a href="#urunler">Ürünler</a><a href="#iletisim">İletişim</a></nav>
+  <input class="search" id="q" type="search" placeholder="Ürün ara…" style="margin-left:auto">
+  <button class="btn" id="cartBtn">Sepet (<span id="cartCount">0</span>)</button>
 </div></header>
 
+<section class="hero" id="top"><div class="wrap">
+  <div>
+    <h1>Kırtasiyenin <em>en eğlenceli</em> hali</h1>
+    <p>Kalem, defter, boya ve okul-ofis ihtiyaçlarınız için her şey bir arada. Seçin, sepete atın, kapınıza gelsin.</p>
+    <a class="btn lg" href="#urunler">Alışverişe başla →</a>
+  </div>
+  <img src="/logo.png" alt="Karnaval Kırtasiye">
+</div></section>
+
 <main class="wrap">
-  <div class="chips" id="chips"></div>
+  <div class="features">
+    <div><span>✏️</span><b>Geniş çeşit</b>İhtiyacınız olan her şey</div>
+    <div><span>⭐</span><b>Kaliteli ürünler</b>Özenle seçilmiş markalar</div>
+    <div><span>🚚</span><b>Kapıda teslim</b>Siparişiniz size gelsin</div>
+    <div><span>📞</span><b>Destek</b>Sorularınız için yanınızdayız</div>
+  </div>
+
+  <h2 class="sec" id="kategoriler">Kategoriler</h2>
+  <div class="cats" id="chips"></div>
+
+  <h2 class="sec" id="urunler">Ürünler</h2>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden>Ürün bulunamadı.</div>
+
+  <div class="banner">
+    <div><h3>Okula dönüş <em>Karnaval</em>'la daha renkli</h3><p>Yeni ürünlerimizi kaçırmayın.</p></div>
+    <a class="btn lg" style="background:var(--accent);color:var(--navy)" href="#urunler">Ürünlere bak</a>
+  </div>
 </main>
+
+<footer class="foot" id="iletisim"><div class="wrap">
+  <div><b>Karnaval Kırtasiye</b><br>Sipariş ve bilgi için bizimle iletişime geçin.</div>
+  <div>© <span id="yr"></span> Karnaval Kırtasiye</div>
+</div></footer>
 
 <div class="drawer" id="drawer"><aside>
   <div class="row"><h2>Sepetim</h2><button class="btn ghost sm" id="closeCart">Kapat</button></div>
@@ -38,14 +70,16 @@ const $ = s => document.querySelector(s);
 const tl = n => n.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' });
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let products = [], cat = '', cart = JSON.parse(localStorage.getItem('cart') || '{}');
+$('#yr').textContent = new Date().getFullYear();
 
 function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2800); }
 const save = () => { localStorage.setItem('cart', JSON.stringify(cart)); renderCart(); };
 
 async function loadCats() {
   const cats = await (await fetch('/api/categories')).json();
+  $('#chips').style.display = cats.length ? '' : 'none';
   $('#chips').innerHTML = [{ id: '', name: 'Tümü' }, ...cats]
-    .map(c => `<button class="chip ${String(c.id) === cat ? 'on' : ''}" data-id="${c.id}">${esc(c.name)}</button>`).join('');
+    .map(c => `<div class="cat-tile ${String(c.id) === cat ? 'on' : ''}" data-id="${c.id}">${esc(c.name)}</div>`).join('');
 }
 async function loadProducts() {
   const p = new URLSearchParams();
@@ -58,7 +92,7 @@ async function loadProducts() {
   $('#empty').textContent = 'Ürün bulunamadı.';
   $('#grid').innerHTML = products.map(p => `
     <div class="card">
-      <div class="img" ${p.image_id ? `style="background-image:url(/api/images/${p.image_id})"` : ''}>${p.image_id ? '' : '📒'}</div>
+      <div class="img" ${p.image_id ? `style="background-image:url(/api/images/${p.image_id})"` : ''}>${p.image_id ? '' : '✏️'}</div>
       <div class="info">
         ${p.category ? `<span class="cat">${esc(p.category)}</span>` : ''}
         <h3>${esc(p.name)}</h3>
@@ -68,6 +102,7 @@ async function loadProducts() {
         </div>
       </div>
     </div>`).join('');
+  renderCart();
 }
 const known = {};
 function renderCart() {
@@ -84,11 +119,11 @@ function renderCart() {
   $('#cartTotal').textContent = tl(total);
 }
 document.addEventListener('click', e => {
-  const t = e.target;
-  if (t.dataset.id !== undefined && t.classList.contains('chip')) { cat = t.dataset.id; loadCats(); loadProducts(); }
-  if (t.dataset.add) { cart[t.dataset.add] = (cart[t.dataset.add] || 0) + 1; save(); toast('Sepete eklendi'); }
-  if (t.dataset.inc) { cart[t.dataset.inc]++; save(); }
-  if (t.dataset.dec) { if (--cart[t.dataset.dec] <= 0) delete cart[t.dataset.dec]; save(); }
+  const t = e.target.closest('[data-id],[data-add],[data-inc],[data-dec]') || e.target, d = t.dataset;
+  if (d.id !== undefined && t.classList.contains('cat-tile')) { cat = d.id; loadCats(); loadProducts(); }
+  if (d.add) { cart[d.add] = (cart[d.add] || 0) + 1; save(); toast('Sepete eklendi'); }
+  if (d.inc) { cart[d.inc]++; save(); }
+  if (d.dec) { if (--cart[d.dec] <= 0) delete cart[d.dec]; save(); }
 });
 $('#cartBtn').onclick = () => { renderCart(); $('#drawer').classList.add('open'); };
 $('#closeCart').onclick = () => $('#drawer').classList.remove('open');
@@ -107,7 +142,7 @@ $('#orderForm').onsubmit = async e => {
   toast(`Siparişiniz alındı (#${d.id}). Teşekkürler!`); loadProducts();
 };
 
-(async () => { await loadCats(); await loadProducts(); renderCart(); })();
+(async () => { await loadCats(); await loadProducts(); })();
 </script>
 </body>
 </html>
