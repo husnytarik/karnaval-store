@@ -3,7 +3,7 @@ body.adm{background:#f6f4ef;font-size:15px}
 .adm header.top.admin{background:#fff;position:static}
 .adm header.top.admin .wrap{height:56px;display:flex;align-items:center;gap:12px}
 .adm header.top.admin .logo img{height:38px}
-.adm .brand-t{font-size:.85rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.adm .brand-t{font-size:.85rem;color:var(--muted)}
 .adm main.wrap{max-width:1080px;padding-bottom:90px}
 
 /* sekmeler */
@@ -20,7 +20,7 @@ body.adm{background:#f6f4ef;font-size:15px}
 .adm textarea{min-height:64px}
 .adm label{font-size:.78rem;margin:12px 0 4px;color:var(--muted);font-weight:500}
 .adm label small{font-weight:400;opacity:.8}
-.adm .btn{letter-spacing:.05em;padding:8px 16px;font-size:.78rem}
+.adm .btn{;padding:8px 16px;font-size:.78rem}
 .adm .btn.sm{padding:5px 10px;font-size:.7rem}
 .adm .btn.ghost{background:#fff}
 .hint{font-size:.76rem;color:var(--muted);margin-top:4px}
@@ -40,7 +40,7 @@ body.adm{background:#f6f4ef;font-size:15px}
 .fgrid{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
 .fcol{display:flex;flex-direction:column;gap:16px;min-width:0}
 .card2{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px}
-.card2 h3{margin:0 0 2px;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.card2 h3{margin:0 0 2px;font-size:.78rem;color:var(--ink)}
 .card2 > label:first-of-type{margin-top:8px}
 .card2 .r2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}
 .card2 input[type=date]{min-width:0;padding:7px 6px}

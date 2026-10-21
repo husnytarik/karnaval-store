@@ -1,8 +1,8 @@
-:root{--bg:#fff;--soft:#fbf7f0;--card:#fff;--ink:#22254f;--muted:#6b6f8a;--line:#ebe6dc;--brand:#ec6522;--brand-d:#c9511a;--navy:#22254f;--accent:#f9a52b;--danger:#b4372f;--r:6px;--serif:"Playfair Display",Georgia,serif}
+:root{--bg:#fff;--soft:#fbf7f0;--card:#fff;--ink:#22254f;--muted:#6b6f8a;--line:#ebe6dc;--brand:#ec6522;--brand-d:#c9511a;--navy:#22254f;--accent:#f9a52b;--danger:#b4372f;--r:6px;--serif:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{scroll-behavior:smooth}
-body{margin:0;font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+body{margin:0;font:15px/1.6 var(--serif);background:var(--bg);color:var(--ink)}
 button,input,select,textarea{font:inherit}
 .wrap{max-width:1200px;margin:0 auto;padding:0 20px}
 
@@ -12,7 +12,7 @@ header.top .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:cen
 .logo{display:flex;align-items:center;text-decoration:none}
 .logo img{height:68px;display:block}
 .nav{display:flex;gap:34px}
-.nav a{color:var(--ink);text-decoration:none;font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 0;border-bottom:2px solid transparent}
+.nav a{color:var(--ink);text-decoration:none;font-size:.92rem;font-weight:500;padding:6px 0;border-bottom:2px solid transparent}
 .nav a:hover,.nav a.on{border-color:var(--ink)}
 .tools{display:flex;justify-content:flex-end;align-items:center;gap:6px}
 .icon-btn{position:relative;background:none;border:0;width:40px;height:40px;border-radius:50%;cursor:pointer;color:var(--ink);display:grid;place-items:center}
@@ -23,7 +23,7 @@ header.top .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:cen
 .search.open{width:190px;opacity:1;padding:6px 4px}
 
 /* butonlar */
-.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--navy);border-radius:var(--r);padding:9px 18px;background:var(--navy);color:#fff;cursor:pointer;text-decoration:none;font-size:.8rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--navy);border-radius:var(--r);padding:9px 18px;background:var(--navy);color:#fff;cursor:pointer;text-decoration:none;font-size:.92rem;font-weight:600}
 .btn:hover{background:var(--brand);border-color:var(--brand)}
 .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 .btn.ghost:hover{background:var(--soft);border-color:var(--ink)}
@@ -34,7 +34,7 @@ header.top .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:cen
 /* hero */
 .hero{background:linear-gradient(90deg,rgba(255,255,255,.94) 0%,rgba(255,255,255,.82) 38%,rgba(255,255,255,0) 72%),url(/herobg.jpg) center 18%/cover #fff6e8;overflow:hidden}
 .hero .wrap{display:grid;grid-template-columns:minmax(0,520px);align-items:center;min-height:460px}
-.hero h1{font-family:var(--serif);font-weight:500;font-size:clamp(2.4rem,5.5vw,4.2rem);line-height:1.08;margin:0 0 18px}
+.hero h1{font-weight:700;font-size:clamp(2.4rem,5.5vw,4.2rem);line-height:1.08;margin:0 0 18px}
 .hero h1 span{display:block;color:var(--brand)}
 .hero p{color:#4a4d6a;max-width:360px;margin:0 0 26px}
 .hero img{width:100%;max-width:520px;justify-self:end}
@@ -43,12 +43,12 @@ header.top .wrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:cen
 .features{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
 .features div{display:flex;gap:14px;align-items:center;justify-content:center;padding:22px 10px;border-right:1px solid var(--line);font-size:.8rem;color:var(--muted);line-height:1.35}
 .features div:last-child{border-right:0}
-.features b{display:block;color:var(--ink);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase}
+.features b{display:block;color:var(--ink);font-size:.92rem}
 .features .ic{width:30px;height:30px;flex:none;stroke:var(--ink);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .ph{background:#fbf3e4 url(/favicon.png) center/42% no-repeat!important}
 
 /* bölüm başlıkları */
-h2.sec{text-align:center;margin:44px 0 20px;font-size:.95rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+h2.sec{text-align:center;margin:44px 0 20px;font-size:1.5rem;font-weight:700}
 h2.sec::after{content:"";display:block;width:36px;height:2px;background:var(--brand);margin:10px auto 0}
 
 /* kategori kutuları */
@@ -56,7 +56,7 @@ h2.sec::after{content:"";display:block;width:36px;height:2px;background:var(--br
 .cat-tile{cursor:pointer;text-align:center;border-radius:var(--r);overflow:hidden;background:var(--soft);border:1px solid var(--line);transition:box-shadow .15s}
 .cat-tile:hover,.cat-tile.on{box-shadow:0 0 0 2px var(--brand)}
 .cat-tile .pic{aspect-ratio:1.15;background:#fff3df center/cover no-repeat;display:grid;place-items:center;font-size:3rem}
-.cat-tile b{display:block;padding:10px 6px 0;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
+.cat-tile b{display:block;padding:10px 6px 0;font-size:.92rem}
 .cat-tile small{display:block;padding:0 6px 10px;font-size:.72rem;color:var(--muted)}
 
 /* ürünler */
@@ -65,7 +65,7 @@ h2.sec::after{content:"";display:block;width:36px;height:2px;background:var(--br
 .card .img{aspect-ratio:1;background:#fbf3e4 center/cover no-repeat;display:grid;place-items:center;font-size:2.4rem;border-radius:var(--r)}
 .card .info{padding:10px 2px 4px;display:flex;flex-direction:column;gap:3px;flex:1}
 .card h3{margin:0;font-size:.9rem;font-weight:600}
-.card .cat{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.card .cat{font-size:.78rem;color:var(--muted)}
 .card .desc{font-size:.8rem;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .price{font-weight:700;color:var(--brand)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}
@@ -78,7 +78,7 @@ h2.sec::after{content:"";display:block;width:36px;height:2px;background:var(--br
 /* kampanya bandı */
 .banner{display:grid;grid-template-columns:1fr 1fr;align-items:center;background:var(--navy);color:#fff;border-radius:var(--r);overflow:hidden;margin:50px 0}
 .banner .t{padding:40px}
-.banner h3{font-family:var(--serif);font-weight:500;font-size:2rem;line-height:1.15;margin:0 0 10px}
+.banner h3{font-weight:700;font-size:2rem;line-height:1.15;margin:0 0 10px}
 .banner h3 em{font-style:normal;color:var(--accent)}
 .banner p{margin:0 0 20px;color:#c9cbe0}
 .banner .btn{background:transparent;border-color:#fff}
@@ -89,7 +89,7 @@ h2.sec::after{content:"";display:block;width:36px;height:2px;background:var(--br
 /* alt bilgi */
 footer.foot{border-top:1px solid var(--line);background:var(--soft);padding:40px 0 22px;font-size:.88rem;color:var(--muted)}
 footer.foot .cols{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:30px}
-footer.foot b{display:block;color:var(--ink);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+footer.foot b{display:block;color:var(--ink);font-size:.95rem;margin-bottom:10px}
 footer.foot a{display:block;color:var(--muted);text-decoration:none;margin-bottom:6px}
 footer.foot a:hover{color:var(--brand)}
 footer.foot img{height:70px;margin-bottom:8px}
@@ -99,7 +99,7 @@ footer.foot .copy{border-top:1px solid var(--line);margin-top:26px;padding-top:1
 .drawer{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:20}
 .drawer.open{display:block}
 .drawer aside{position:absolute;right:0;top:0;bottom:0;width:min(420px,100%);background:#fff;padding:20px;overflow:auto;display:flex;flex-direction:column;gap:12px}
-.drawer h2{margin:0;font-family:var(--serif);font-weight:500}
+.drawer h2{margin:0;font-weight:700}
 .line{display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:8px 0}
 .line .n{flex:1}
 .qty{display:flex;align-items:center;gap:6px}
@@ -120,7 +120,7 @@ header.top.admin .logo img{height:52px}
 .tab.on{color:var(--brand);border-color:var(--brand);font-weight:600}
 table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
-th{font-size:.75rem;color:var(--muted);text-transform:uppercase;background:var(--soft)}
+th{font-size:.8rem;color:var(--muted);background:var(--soft)}
 td img{width:44px;height:44px;object-fit:cover;border-radius:6px;display:block}
 .thumb-ph{width:44px;height:44px;background:#f0ede6;border-radius:6px}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:20px}
@@ -160,8 +160,8 @@ s.old{color:var(--muted);font-weight:400;font-size:.85em}
 .thumbs{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
 .thumbs button{width:72px;height:72px;border-radius:var(--r);border:2px solid var(--line);background:#fbf3e4 center/cover;cursor:pointer;padding:0}
 .thumbs button.on{border-color:var(--brand)}
-.pinfo h1{font-family:var(--serif);font-weight:500;font-size:clamp(1.7rem,3.4vw,2.4rem);line-height:1.15;margin:4px 0 12px}
-.pinfo .cat{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.pinfo h1{font-weight:700;font-size:clamp(1.7rem,3.4vw,2.4rem);line-height:1.15;margin:4px 0 12px}
+.pinfo .cat{font-size:.85rem;color:var(--muted)}
 .pprice{font-size:1.7rem;font-weight:700;margin-bottom:4px}
 .pprice .price{font-size:1.7rem}
 .sale-note{color:var(--brand);font-size:.85rem;margin-bottom:8px}
@@ -172,7 +172,7 @@ s.old{color:var(--muted);font-weight:400;font-size:.85em}
 .qty.big button{border:0;width:34px;height:34px;font-size:1.1rem}
 .qty.big span{min-width:28px;text-align:center;font-weight:600}
 .pdetail{grid-column:1/-1;border-top:1px solid var(--line);padding-top:24px}
-.pdetail h2{font-size:.95rem;letter-spacing:.12em;text-transform:uppercase;margin:0 0 12px}
+.pdetail h2{font-size:1.2rem;margin:0 0 12px}
 .pdetail div{max-width:760px;line-height:1.7}
 @media(max-width:720px){.pdp{grid-template-columns:1fr;gap:20px}}
 /* admin: görsel listesi ve indirim alanı */
@@ -227,12 +227,12 @@ fieldset.opts legend{font-size:.8rem;color:var(--muted);padding:0 6px}
 .card .low{font-size:.75rem;color:var(--brand);margin-top:4px}
 
 /* sipariş: adres formu, özet, takip */
-.ptitle{font-family:var(--serif);font-weight:500;font-size:clamp(1.6rem,3vw,2.1rem);margin:26px 0 18px}
+.ptitle{font-weight:700;font-size:clamp(1.6rem,3vw,2.1rem);margin:26px 0 18px}
 .wrap.narrow{max-width:760px}
 .hint{font-size:.78rem;color:var(--muted);margin-top:6px}
 .lnk{color:var(--muted);font-size:.85rem}.lnk:hover{color:var(--brand)}
 .box{background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-bottom:16px}
-.box h3{margin:0 0 4px;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase}
+.box h3{margin:0 0 4px;font-size:1rem}
 .box .r2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px}
 .box label small{font-weight:400;opacity:.8}
 .err{margin-top:12px;padding:9px 12px;border-radius:var(--r);background:#fbeceb;color:var(--danger);font-size:.88rem}
