@@ -31,6 +31,15 @@
         <div class="qty big"><button id="minus">−</button><span id="qtyVal">1</span><button id="plus">+</button></div>
         <button class="btn lg" id="addBtn">Sepete ekle</button>
       </div>
+      <div class="share" id="share">
+        <button type="button" class="sharebtn" id="shareBtn"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg>Paylaş</button>
+        <div class="sharemenu" id="shareMenu" hidden>
+          <a id="shWa" target="_blank" rel="noopener">WhatsApp</a>
+          <a id="shFb" target="_blank" rel="noopener">Facebook</a>
+          <a id="shX" target="_blank" rel="noopener">X</a>
+          <button type="button" id="shCopy">Bağlantıyı kopyala</button>
+        </div>
+      </div>
     </div>
     <section class="pdetail">
       <h2>Ürün detayları</h2>
@@ -67,7 +76,10 @@ function renderOptions() {
   $('#colorName').textContent = color;
   $('#colorChips').innerHTML = p.colors.map(c => {
     const t = c.gallery[0];
-    return `<button type="button" class="chip ${c.name === color ? 'on' : ''} ${colorStock(c.name) ? '' : 'na'}" data-color="${esc(c.name)}" title="${esc(c.name)}">${t ? `<i style="background-image:url(${imgUrl(t)})"></i>` : ''}${esc(c.name)}</button>`;
+    const cls = `${c.name === color ? 'on' : ''} ${colorStock(c.name) ? '' : 'na'}`;
+    return t
+      ? `<button type="button" class="sw ${cls}" data-color="${esc(c.name)}" title="${esc(c.name)}"><span style="background-image:url(${imgUrl(t)})"></span><em>${esc(c.name)}</em></button>`
+      : `<button type="button" class="chip ${cls}" data-color="${esc(c.name)}">${esc(c.name)}</button>`;
   }).join('');
   $('#sizeBox').hidden = !p.sizes.length;
   $('#sizeLabel').textContent = p.size_label || 'Boy';
@@ -121,6 +133,23 @@ $('#minus').onclick = () => { qty = Math.max(1, qty - 1); $('#qtyVal').textConte
 const curStock = () => { const v = variantOf(color, size); return (product.variants.length ? v?.unlimited : product.unlimited) ? 999 : (product.variants.length ? (v?.stock || 0) : product.stock); };
 $('#plus').onclick = () => { qty = Math.min(curStock(), qty + 1); $('#qtyVal').textContent = qty; };
 $('#addBtn').onclick = () => addToCart(product, qty, product.variants.length ? { color, size, stock: curStock(), unlimited: !!variantOf(color, size)?.unlimited, image: colorImgs(color)[0] } : undefined);
+// ---- paylaş: telefonda sistem paylaşım penceresi, bilgisayarda küçük menü ----
+const shareUrl = () => `${location.origin}/urun?id=${encodeURIComponent(id)}`;
+$('#shareBtn').onclick = async () => {
+  const url = shareUrl(), text = `${product.name} - Karnaval Kırtasiye`;
+  if (navigator.share) { try { await navigator.share({ title: product.name, text, url }); } catch {} return; }
+  const u = encodeURIComponent(url), t = encodeURIComponent(text);
+  $('#shWa').href = `https://wa.me/?text=${t}%20${u}`;
+  $('#shFb').href = `https://www.facebook.com/sharer/sharer.php?u=${u}`;
+  $('#shX').href = `https://twitter.com/intent/tweet?text=${t}&url=${u}`;
+  $('#shareMenu').hidden = !$('#shareMenu').hidden;
+};
+$('#shCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText(shareUrl()); toast('Bağlantı kopyalandı'); }
+  catch { prompt('Bağlantıyı kopyalayın:', shareUrl()); }
+  $('#shareMenu').hidden = true;
+};
+document.addEventListener('click', e => { if (!e.target.closest('#share')) $('#shareMenu').hidden = true; });
 const onOrderDone = load;
 load();
 </script>

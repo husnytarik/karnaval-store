@@ -195,6 +195,27 @@ input[type=date]{width:100%;padding:9px 12px;border:1px solid var(--line);border
 .chip i{width:22px;height:22px;border-radius:50%;background:#f0ede6 center/cover;border:1px solid var(--line)}
 .chip.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 .chip.na{color:#aaa;text-decoration:line-through}
+/* renk: fotoğraflı kutucuklar; boy: sabit genişlikli düğmeler */
+.opt{margin:18px 0}
+.olabel{margin-bottom:8px}
+.chips .chip{min-width:46px;justify-content:center;padding:8px 14px}
+.sw{display:flex;flex-direction:column;align-items:center;gap:6px;width:68px;padding:0;border:0;background:none;font:inherit;cursor:pointer;color:var(--muted)}
+.sw span{display:block;width:68px;height:68px;border-radius:8px;border:1px solid var(--line);background:#fff center/contain no-repeat}
+.sw em{font-style:normal;font-size:.76rem;line-height:1.2;text-align:center;max-width:100%;overflow-wrap:anywhere}
+.sw:hover span{border-color:#bdb7a6}
+.sw.on span{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.sw.on em{color:var(--ink);font-weight:600}
+.sw.na{opacity:.45}
+.chip:hover{border-color:#bdb7a6}
+/* paylaş */
+.share{position:relative;margin-top:18px}
+.sharebtn{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:6px 0;font:inherit;font-size:.88rem;color:var(--muted);cursor:pointer}
+.sharebtn:hover{color:var(--brand)}
+.sharebtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.sharemenu{position:absolute;left:0;top:100%;z-index:5;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(34,37,79,.12);padding:6px;display:flex;flex-direction:column}
+.sharemenu[hidden]{display:none}
+.sharemenu a,.sharemenu button{display:block;text-align:left;background:none;border:0;padding:9px 12px;font:inherit;font-size:.88rem;color:var(--ink);text-decoration:none;cursor:pointer;border-radius:4px}
+.sharemenu a:hover,.sharemenu button:hover{background:#f6f4ef}
 .vgrid{width:100%;border-collapse:collapse;margin-top:8px}.vgrid td,.vgrid th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;font-size:.9rem}
 .vgrid input{width:90px;padding:6px 8px}
 .ccard{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-top:10px}
