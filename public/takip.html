@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sipariş takip · Karnaval Kırtasiye</title>
+<link rel="icon" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&display=swap&subset=latin-ext" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body data-page="track">
+<main class="wrap narrow">
+  <div class="okbox" id="okBox" hidden>
+    <b>Siparişiniz alındı, teşekkürler!</b>
+    <span>Sipariş numaranız <strong id="okNo"></strong>. Siparişinizi bu numara ve telefonunuzla aşağıdan takip edebilirsiniz.</span>
+  </div>
+  <h1 class="ptitle">Sipariş takip</h1>
+  <form class="box trackform" id="trackForm">
+    <div class="r2">
+      <div><label for="t_id">Sipariş numarası</label><input type="text" id="t_id" inputmode="numeric" placeholder="Örn. 12" required></div>
+      <div><label for="t_phone">Sipariş verirken yazdığınız telefon</label><input type="tel" id="t_phone" inputmode="tel" placeholder="05xx xxx xx xx" required></div>
+    </div>
+    <div class="err" id="tErr" hidden></div>
+    <button class="btn" style="margin-top:12px">Siparişi sorgula</button>
+  </form>
+
+  <div id="result" hidden>
+    <section class="box">
+      <div class="thead">
+        <div><small>Sipariş</small><div class="tno" id="rNo"></div><small id="rDate"></small></div>
+        <span class="stbadge" id="rBadge"></span>
+      </div>
+      <ol class="steps" id="steps"></ol>
+      <div class="cargo" id="cargo" hidden></div>
+    </section>
+    <section class="box">
+      <h3>Ürünler</h3>
+      <div id="rItems"></div>
+      <div class="sumrow total"><strong>Toplam</strong><span class="price" id="rTotal"></span></div>
+      <div class="hint" id="rPay"></div>
+    </section>
+    <section class="box">
+      <h3>Teslimat</h3>
+      <div id="rAddr"></div>
+    </section>
+  </div>
+</main>
+
+<script src="/shop.js"></script>
+<script>
+const LABEL = { 'yeni': 'Sipariş alındı', 'hazırlanıyor': 'Hazırlanıyor', 'kargoda': 'Kargoda', 'teslim edildi': 'Teslim edildi', 'iptal': 'İptal edildi' };
+const FLOW = ['yeni', 'hazırlanıyor', 'kargoda', 'teslim edildi'];
+const fmt = s => new Date(s).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+const q = new URLSearchParams(location.search);
+const show = m => { const e = $('#tErr'); e.textContent = m; e.hidden = !m; };
+
+function render(o) {
+  const at = {}; for (const h of o.history || []) at[h.status] = h.at;
+  $('#rNo').textContent = '#' + o.id;
+  $('#rDate').textContent = fmt(o.created_at);
+  $('#rBadge').textContent = LABEL[o.status] || o.status;
+  $('#rBadge').className = 'stbadge st-' + o.status.replace(/\s/g, '');
+  const cancelled = o.status === 'iptal';
+  const cur = FLOW.indexOf(o.status);
+  $('#steps').hidden = cancelled;
+  $('#steps').innerHTML = FLOW.map((s, i) => `<li class="${i < cur ? 'done' : i === cur ? 'now' : ''}"><i></i><span>${LABEL[s]}</span><small>${at[s] ? fmt(at[s]) : ''}</small></li>`).join('');
+  $('#cargo').hidden = !(o.cargo_company || o.tracking_no);
+  $('#cargo').innerHTML = `<b>Kargo bilgisi</b> ${esc(o.cargo_company || '')}${o.tracking_no ? ' · Takip no: <strong>' + esc(o.tracking_no) + '</strong>' : ''}`;
+  if (cancelled) { $('#cargo').hidden = false; $('#cargo').innerHTML = `Bu sipariş iptal edildi${at.iptal ? ' (' + fmt(at.iptal) + ')' : ''}. Sorularınız için bizimle iletişime geçebilirsiniz.`; }
+  $('#rItems').innerHTML = o.items.map(i => `<div class="sline"><span class="n">${esc(i.name)}${i.color || i.size ? `<br><small>${esc([i.color, i.size].filter(Boolean).join(' · '))}</small>` : ''}<br><small>${i.qty} × ${tl(i.price)}</small></span><b>${tl(i.price * i.qty)}</b></div>`).join('');
+  $('#rTotal').textContent = tl(o.total);
+  $('#rPay').textContent = 'Ödeme yöntemi: ' + o.payment;
+  $('#rAddr').innerHTML = `<b>${esc(o.customer_name)}</b><br>${esc(o.address)}<br>${esc(o.district)} / ${esc(o.city)}${o.note ? `<br><em class="hint">Not: ${esc(o.note)}</em>` : ''}`;
+  $('#result').hidden = false;
+}
+
+async function lookup(id, phone) {
+  show(''); $('#result').hidden = true;
+  const res = await fetch(`/api/orders/track?id=${encodeURIComponent(id)}&phone=${encodeURIComponent(phone)}`);
+  const d = await res.json();
+  if (!res.ok) return show(d.error || 'Sorgulanamadı');
+  render(d);
+  history.replaceState(null, '', `/takip?id=${d.id}&tel=${encodeURIComponent(phone)}`);
+}
+$('#trackForm').onsubmit = e => { e.preventDefault(); lookup($('#t_id').value.replace(/\D/g, ''), $('#t_phone').value); };
+
+// adres çubuğundan ya da az önce verilen siparişten doldur
+let last = {}; try { last = JSON.parse(localStorage.getItem('lastOrder') || '{}'); } catch {}
+const id0 = q.get('id') || last.id || '', ph0 = q.get('tel') || last.phone || '';
+$('#t_id').value = id0; $('#t_phone').value = ph0;
+if (q.get('yeni')) { $('#okBox').hidden = false; $('#okNo').textContent = '#' + id0; }
+if (q.get('id') && q.get('tel')) lookup(id0, ph0);
+</script>
+</body>
+</html>

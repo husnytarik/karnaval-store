@@ -36,6 +36,15 @@ const productCols = `p.id, p.name, p.description, p.details, p.price::float AS p
 const productFrom = `FROM products p LEFT JOIN categories c ON c.id = p.category_id`;
 
 class Bad extends Error {}
+const PAYMENTS = { nakit: 'kapıda nakit', kart: 'kapıda kart' };
+const STATUSES = ['yeni', 'hazırlanıyor', 'kargoda', 'teslim edildi', 'iptal'];
+// telefon: 0 5xx xxx xx xx / +90 5xx ... / 5xx ... hepsi 05xxxxxxxxx olur
+const cleanPhone = v => {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.startsWith('90') && d.length === 12) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return /^5\d{9}$/.test(d) ? '0' + d : null;
+};
 const dateOrNull = v => {
   if (!v) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Bad('Tarih biçimi geçersiz');
@@ -151,10 +160,19 @@ export async function onRequest({ request, env }) {
 
     if (route === 'orders' && method === 'POST') {
       const b = await body();
-      const name = String(b.customer_name || '').trim();
-      const phone = String(b.phone || '').trim();
-      const address = String(b.address || '').trim();
-      if (!name || !phone || !address) return fail('Ad, telefon ve adres gerekli');
+      const name = String(b.customer_name || '').trim().slice(0, 80);
+      const phone = cleanPhone(b.phone);
+      const email = String(b.email || '').trim().slice(0, 120);
+      const city = String(b.city || '').trim().slice(0, 40);
+      const district = String(b.district || '').trim().slice(0, 60);
+      const address = String(b.address || '').trim().slice(0, 400);
+      const payment = PAYMENTS[b.payment];
+      if (name.length < 3 || !name.includes(' ')) return fail('Ad ve soyadınızı yazın');
+      if (!phone) return fail('Geçerli bir cep telefonu girin (05xx xxx xx xx)');
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('E-posta adresi geçersiz');
+      if (!city || !district) return fail('İl ve ilçe seçin');
+      if (address.length < 10) return fail('Açık adresi yazın (mahalle, sokak, kapı no)');
+      if (!payment) return fail('Ödeme yöntemi seçin');
       if (!Array.isArray(b.items) || !b.items.length) return fail('Sepet boş');
       const lines = new Map();
       for (const it of b.items) {
@@ -184,8 +202,9 @@ export async function onRequest({ request, env }) {
         total += p.price * l.qty;
       }
       for (const t of touched.values()) if (!t.p.variants.length && !t.p.unlimited && t.qty > t.p.stock) return fail(`"${t.p.name}" için yeterli stok yok (kalan: ${t.p.stock})`);
-      const [order] = await sql`INSERT INTO orders (customer_name, phone, address, note, items, total)
-        VALUES (${name}, ${phone}, ${address}, ${String(b.note || '').trim()}, ${JSON.stringify(items)}::jsonb, ${total})
+      const [order] = await sql`INSERT INTO orders (customer_name, phone, email, city, district, address, payment, note, items, total, history)
+        VALUES (${name}, ${phone}, ${email}, ${city}, ${district}, ${address}, ${payment}, ${String(b.note || '').trim().slice(0, 300)}, ${JSON.stringify(items)}::jsonb, ${total},
+          ${JSON.stringify([{ status: 'yeni', at: new Date().toISOString() }])}::jsonb)
         RETURNING id`;
       for (const t of touched.values()) {
         if (t.p.variants.length) {
@@ -193,7 +212,17 @@ export async function onRequest({ request, env }) {
           await sql`UPDATE products SET variants = ${JSON.stringify(vs)}::jsonb, stock = ${vs.reduce((a, v) => a + v.stock, 0)} WHERE id = ${t.p.id}`;
         } else if (!t.p.unlimited) await sql`UPDATE products SET stock = GREATEST(stock - ${t.qty}, 0) WHERE id = ${t.p.id}`;
       }
-      return json({ ok: true, id: order.id }, 201);
+      return json({ ok: true, id: order.id, total }, 201);
+    }
+
+    // sipariş takibi: sipariş no + sipariş verirken yazılan telefon ile
+    if (route === 'orders/track' && method === 'GET') {
+      const oid = parseInt(url.searchParams.get('id'), 10), phone = cleanPhone(url.searchParams.get('phone'));
+      const [o] = oid && phone ? await sql`SELECT id, customer_name, phone, city, district, address, payment, note, items, total::float AS total,
+        status, history, cargo_company, tracking_no, created_at FROM orders WHERE id = ${oid}` : [];
+      if (!o || o.phone !== phone) return fail('Bu bilgilerle bir sipariş bulunamadı. Sipariş numarasını ve sipariş verirken yazdığınız telefonu kontrol edin.', 404);
+      const { phone: _p, ...safe } = o;
+      return json(safe);
     }
 
     // ---------- yönetici ----------
@@ -267,12 +296,33 @@ export async function onRequest({ request, env }) {
 
       if (res === 'orders') {
         if (!id && method === 'GET')
-          return json(await sql`SELECT id, customer_name, phone, address, note, items, total::float AS total, status, created_at
-            FROM orders ORDER BY created_at DESC LIMIT 200`);
+          return json(await sql`SELECT id, customer_name, phone, email, city, district, address, payment, note, items, total::float AS total, status,
+            history, cargo_company, tracking_no, admin_note, created_at FROM orders ORDER BY created_at DESC LIMIT 300`);
         if (id && method === 'PUT') {
-          const status = String((await body()).status || '');
-          if (!['yeni', 'hazırlanıyor', 'kargoda', 'teslim edildi', 'iptal'].includes(status)) return fail('Geçersiz durum');
-          await sql`UPDATE orders SET status=${status} WHERE id=${Number(id)}`;
+          const b = await body();
+          const [o] = await sql`SELECT status, items, history, restocked FROM orders WHERE id = ${Number(id)}`;
+          if (!o) return fail('Sipariş bulunamadı', 404);
+          const status = b.status === undefined ? o.status : String(b.status);
+          if (!STATUSES.includes(status)) return fail('Geçersiz durum');
+          if (o.status === 'iptal' && status !== 'iptal') return fail('İptal edilen sipariş yeniden açılamaz');
+          const history = status !== o.status ? [...o.history, { status, at: new Date().toISOString() }] : o.history;
+          // iptalde stok geri eklenir (bir kez)
+          if (status === 'iptal' && !o.restocked) {
+            for (const it of o.items) {
+              const [p] = await sql`SELECT id, stock, unlimited, variants FROM products WHERE id = ${it.id}`;
+              if (!p) continue;
+              if (p.variants.length) {
+                const vs = p.variants.map(v => v.color === (it.color || '') && v.size === (it.size || '') && !v.unlimited ? { ...v, stock: v.stock + it.qty } : v);
+                await sql`UPDATE products SET variants = ${JSON.stringify(vs)}::jsonb, stock = ${vs.reduce((a, v) => a + v.stock, 0)} WHERE id = ${p.id}`;
+              } else if (!p.unlimited) await sql`UPDATE products SET stock = stock + ${it.qty} WHERE id = ${p.id}`;
+            }
+          }
+          await sql`UPDATE orders SET status = ${status}, history = ${JSON.stringify(history)}::jsonb,
+            restocked = restocked OR ${status === 'iptal'},
+            cargo_company = COALESCE(${b.cargo_company === undefined ? null : String(b.cargo_company).trim().slice(0, 40)}, cargo_company),
+            tracking_no = COALESCE(${b.tracking_no === undefined ? null : String(b.tracking_no).trim().slice(0, 60)}, tracking_no),
+            admin_note = COALESCE(${b.admin_note === undefined ? null : String(b.admin_note).trim().slice(0, 500)}, admin_note)
+            WHERE id = ${Number(id)}`;
           return json({ ok: true });
         }
       }

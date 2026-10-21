@@ -41,13 +41,14 @@ function renderCart() {
       <span class="qty"><button data-dec="${esc(id)}">−</button>${c.q}<button data-inc="${esc(id)}">+</button></span></div>`;
   }).join('') : '<div class="empty">Sepetiniz boş.</div>';
   $('#cartTotal').textContent = tl(total);
+  $('#checkoutBtn').style.display = ids.length ? '' : 'none';
 }
 
 // ---- ortak iskelet ----
 document.body.insertAdjacentHTML('afterbegin', `
 <header class="top"><div class="wrap">
   <a class="logo" href="/"><img src="/logo.png" alt="Karnaval Kırtasiye"></a>
-  <nav class="nav"><a href="/">Anasayfa</a><a href="/#kategoriler">Kategoriler</a><a href="/#urunler">Ürünler</a><a href="#iletisim">İletişim</a></nav>
+  <nav class="nav"><a href="/">Anasayfa</a><a href="/#kategoriler">Kategoriler</a><a href="/#urunler">Ürünler</a><a href="/takip">Sipariş takip</a><a href="#iletisim">İletişim</a></nav>
   <div class="tools">
     <input class="search" id="q" type="search" placeholder="Ürün ara…">
     <button class="icon-btn" id="searchBtn" aria-label="Ara"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
@@ -58,7 +59,7 @@ document.body.insertAdjacentHTML('beforeend', `
 <footer class="foot" id="iletisim"><div class="wrap">
   <div class="cols">
     <div><img src="/logo.png" alt="Karnaval Kırtasiye"><br>Kalem, defter ve okul-ofis malzemeleri.</div>
-    <div><b>Hızlı bağlantılar</b><a href="/">Anasayfa</a><a href="/#kategoriler">Kategoriler</a><a href="/#urunler">Ürünler</a></div>
+    <div><b>Hızlı bağlantılar</b><a href="/">Anasayfa</a><a href="/#kategoriler">Kategoriler</a><a href="/#urunler">Ürünler</a><a href="/takip">Sipariş takip</a></div>
     <div><b>İletişim</b>Sipariş ve bilgi için bizimle iletişime geçin.</div>
   </div>
   <div class="copy">© ${new Date().getFullYear()} Karnaval Kırtasiye</div>
@@ -67,13 +68,8 @@ document.body.insertAdjacentHTML('beforeend', `
   <div class="row"><h2>Sepetim</h2><button class="btn ghost sm" id="closeCart">Kapat</button></div>
   <div id="cartLines"></div>
   <div class="row"><strong>Toplam</strong><span class="price" id="cartTotal"></span></div>
-  <form id="orderForm">
-    <label>Ad Soyad</label><input type="text" name="customer_name" required>
-    <label>Telefon</label><input type="tel" name="phone" required>
-    <label>Adres</label><textarea name="address" required></textarea>
-    <label>Not (isteğe bağlı)</label><input type="text" name="note">
-    <p style="margin:14px 0 0"><button class="btn" style="width:100%;justify-content:center">Siparişi ver</button></p>
-  </form>
+  <a class="btn" id="checkoutBtn" href="/siparis" style="justify-content:center">Siparişi tamamla</a>
+  <p class="hint" style="margin:0;text-align:center">Ödeme kapıda yapılır. Adres bilgilerini bir sonraki adımda gireceksiniz.</p>
 </aside></div>
 <div class="toast" id="toast"></div>`);
 
@@ -93,16 +89,4 @@ $('#q').addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.body.dataset.page !== 'home') location.href = '/?q=' + encodeURIComponent(e.target.value.trim()) + '#urunler';
 });
 
-$('#orderForm').onsubmit = async e => {
-  e.preventDefault();
-  const items = Object.values(cart).map(c => ({ id: c.id, qty: c.q, color: c.c, size: c.s }));
-  if (!items.length) return toast('Sepet boş');
-  const body = { ...Object.fromEntries(new FormData(e.target)), items };
-  const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const d = await res.json();
-  if (!res.ok) return toast(d.error);
-  cart = {}; saveCart(); e.target.reset(); $('#drawer').classList.remove('open');
-  toast(`Siparişiniz alındı (#${d.id}). Teşekkürler!`);
-  if (typeof onOrderDone === 'function') onOrderDone();
-};
 renderCart();

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Siparişi tamamla · Karnaval Kırtasiye</title>
+<link rel="icon" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&display=swap&subset=latin-ext" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body data-page="checkout">
+<main class="wrap">
+  <h1 class="ptitle">Siparişi tamamla</h1>
+  <div class="empty" id="emptyCart" hidden>Sepetiniz boş. <a href="/#urunler">Alışverişe başlayın</a></div>
+  <form id="coForm" class="co" novalidate hidden>
+    <div>
+      <section class="box">
+        <h3>İletişim bilgileri</h3>
+        <div class="r2">
+          <div><label for="f_name">Ad Soyad</label><input type="text" id="f_name" name="customer_name" autocomplete="name" required></div>
+          <div><label for="f_phone">Cep telefonu</label><input type="tel" id="f_phone" name="phone" autocomplete="tel" inputmode="tel" placeholder="05xx xxx xx xx" required></div>
+        </div>
+        <label for="f_email">E-posta <small>(isteğe bağlı)</small></label>
+        <input type="text" id="f_email" name="email" autocomplete="email" inputmode="email">
+      </section>
+
+      <section class="box">
+        <h3>Teslimat adresi</h3>
+        <div class="r2">
+          <div><label for="f_city">İl</label><select id="f_city" name="city" autocomplete="address-level1" required><option value="">Seçin</option></select></div>
+          <div><label for="f_district">İlçe</label><input type="text" id="f_district" name="district" autocomplete="address-level2" required></div>
+        </div>
+        <label for="f_address">Açık adres</label>
+        <textarea id="f_address" name="address" autocomplete="street-address" placeholder="Mahalle, cadde/sokak, bina ve kapı no, daire" required></textarea>
+        <label for="f_note">Sipariş notu <small>(isteğe bağlı)</small></label>
+        <input type="text" id="f_note" name="note" placeholder="Örn. kapıda zile basmayın, iş yerine teslim">
+      </section>
+
+      <section class="box">
+        <h3>Ödeme yöntemi</h3>
+        <label class="pay"><input type="radio" name="payment" value="nakit" checked><span><b>Kapıda nakit ödeme</b><small>Siparişiniz teslim edilirken kuryeye nakit ödersiniz.</small></span></label>
+        <label class="pay"><input type="radio" name="payment" value="kart"><span><b>Kapıda kredi kartı</b><small>Teslimatta kart ile ödeme yaparsınız.</small></span></label>
+      </section>
+    </div>
+
+    <aside class="box sum">
+      <h3>Sipariş özeti</h3>
+      <div id="sumLines"></div>
+      <div class="sumrow"><span>Ara toplam</span><span id="sumSub"></span></div>
+      <div class="sumrow total"><strong>Toplam</strong><span class="price" id="sumTotal"></span></div>
+      <div class="err" id="coErr" hidden></div>
+      <button class="btn lg" id="coBtn" style="width:100%;justify-content:center;margin-top:14px">Siparişi onayla</button>
+      <p class="hint" style="text-align:center">Ödeme teslimatta yapılır. Siparişinizi sipariş numarası ve telefonunuzla takip edebilirsiniz.</p>
+      <p style="text-align:center;margin:8px 0 0"><a href="#" id="editCart" class="lnk">Sepeti düzenle</a></p>
+    </aside>
+  </form>
+</main>
+
+<script src="/shop.js"></script>
+<script>
+const CITIES = ['Adana','Adıyaman','Afyonkarahisar','Ağrı','Aksaray','Amasya','Ankara','Antalya','Ardahan','Artvin','Aydın','Balıkesir','Bartın','Batman','Bayburt','Bilecik','Bingöl','Bitlis','Bolu','Burdur','Bursa','Çanakkale','Çankırı','Çorum','Denizli','Diyarbakır','Düzce','Edirne','Elazığ','Erzincan','Erzurum','Eskişehir','Gaziantep','Giresun','Gümüşhane','Hakkari','Hatay','Iğdır','Isparta','İstanbul','İzmir','Kahramanmaraş','Karabük','Karaman','Kars','Kastamonu','Kayseri','Kilis','Kırıkkale','Kırklareli','Kırşehir','Kocaeli','Konya','Kütahya','Malatya','Manisa','Mardin','Mersin','Muğla','Muş','Nevşehir','Niğde','Ordu','Osmaniye','Rize','Sakarya','Samsun','Şanlıurfa','Siirt','Sinop','Sivas','Şırnak','Tekirdağ','Tokat','Trabzon','Tunceli','Uşak','Van','Yalova','Yozgat','Zonguldak'];
+$('#f_city').insertAdjacentHTML('beforeend', CITIES.map(c => `<option>${c}</option>`).join(''));
+
+// sipariş özeti sepetten çizilir; sepet değişince (sepet çekmecesinden) yeniden çizilir
+function renderSummary() {
+  const ids = Object.keys(cart);
+  $('#emptyCart').hidden = ids.length > 0;
+  $('#coForm').hidden = ids.length === 0;
+  let total = 0;
+  $('#sumLines').innerHTML = ids.map(k => {
+    const c = cart[k]; total += c.p * c.q;
+    return `<div class="sline"><span class="lthumb ${c.i ? '' : 'ph'}" ${c.i ? `style="background-image:url(${imgUrl(c.i)})"` : ''}></span>
+      <span class="n">${esc(c.n)}${c.c || c.s ? `<br><small>${esc([c.c, c.s].filter(Boolean).join(' · '))}</small>` : ''}<br><small>${c.q} × ${tl(c.p)}</small></span>
+      <b>${tl(c.p * c.q)}</b></div>`;
+  }).join('');
+  $('#sumSub').textContent = $('#sumTotal').textContent = tl(total);
+}
+const baseRender = renderCart;
+renderCart = function () { baseRender(); renderSummary(); };
+renderSummary();
+$('#editCart').onclick = e => { e.preventDefault(); $('#cartBtn').click(); };
+
+const phoneOk = v => { let d = v.replace(/\D/g, ''); if (d.startsWith('90') && d.length === 12) d = d.slice(2); if (d.length === 11 && d[0] === '0') d = d.slice(1); return /^5\d{9}$/.test(d); };
+const show = m => { const e = $('#coErr'); e.textContent = m; e.hidden = !m; };
+
+$('#coForm').onsubmit = async e => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  // tarayıcıda önden kontrol; asıl doğrulama sunucuda
+  const bad = (id, m) => { show(m); $(id).focus(); return true; };
+  if (f.customer_name.trim().split(/\s+/).length < 2) return bad('#f_name', 'Ad ve soyadınızı yazın');
+  if (!phoneOk(f.phone)) return bad('#f_phone', 'Geçerli bir cep telefonu girin (05xx xxx xx xx)');
+  if (f.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return bad('#f_email', 'E-posta adresi geçersiz');
+  if (!f.city) return bad('#f_city', 'İl seçin');
+  if (!f.district.trim()) return bad('#f_district', 'İlçe yazın');
+  if (f.address.trim().length < 10) return bad('#f_address', 'Açık adresi yazın (mahalle, sokak, kapı no)');
+  show('');
+  const items = Object.values(cart).map(c => ({ id: c.id, qty: c.q, color: c.c, size: c.s }));
+  if (!items.length) return;
+  $('#coBtn').disabled = true; $('#coBtn').textContent = 'Gönderiliyor…';
+  try {
+    const res = await fetch('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...f, items }) });
+    const d = await res.json();
+    if (!res.ok) { show(d.error || 'Sipariş verilemedi'); return; }
+    try { localStorage.setItem('lastOrder', JSON.stringify({ id: d.id, phone: f.phone })); } catch {}
+    cart = {}; try { localStorage.setItem('cart2', '{}'); } catch {}
+    location.href = `/takip?id=${d.id}&tel=${encodeURIComponent(f.phone)}&yeni=1`;
+  } catch { show('Bağlantı hatası, lütfen tekrar deneyin'); }
+  finally { $('#coBtn').disabled = false; $('#coBtn').textContent = 'Siparişi onayla'; }
+};
+</script>
+</body>
+</html>

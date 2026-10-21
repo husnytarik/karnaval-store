@@ -28,7 +28,7 @@
   <div class="tabs">
     <button class="tab on" data-tab="products">Ürünler</button>
     <button class="tab" data-tab="categories">Kategoriler</button>
-    <button class="tab" data-tab="orders">Siparişler</button>
+    <button class="tab" data-tab="orders">Siparişler <span class="cnt" id="newCnt" hidden></span></button>
   </div>
 
   <!-- ÜRÜNLER: liste -->
@@ -133,8 +133,12 @@
   </section>
 
   <section id="orders" hidden>
-    <div class="scroll"><table><thead><tr><th>#</th><th>Müşteri</th><th>Ürünler</th><th>Toplam</th><th>Durum</th></tr></thead>
-      <tbody id="otable"></tbody></table></div>
+    <div id="olist">
+      <div class="bar"><div class="seg" id="ofilter"></div><span class="sp"></span><button type="button" class="btn ghost sm" id="oreload">Yenile</button></div>
+      <div class="scroll"><table><thead><tr><th>Sipariş</th><th>Müşteri</th><th>Toplam</th><th>Durum</th></tr></thead>
+        <tbody id="otable"></tbody></table></div>
+    </div>
+    <div id="oview" hidden></div>
   </section>
 </main>
 </div>
@@ -155,7 +159,7 @@ async function api(path, method = 'GET', data) {
 let cats = [], prods = [], editing = null;
 
 function showLogin() { $('#loginView').hidden = false; $('#appView').hidden = true; }
-async function showApp() { $('#loginView').hidden = true; $('#appView').hidden = false; await loadCats(); await loadProducts(); }
+async function showApp() { $('#loginView').hidden = true; $('#appView').hidden = false; await loadCats(); await loadProducts(); loadOrders(); }
 
 $('#loginForm').onsubmit = async e => {
   e.preventDefault();
@@ -359,21 +363,96 @@ document.addEventListener('change', async e => {
     const image_id = await uploadFile(e.target.files[0]);
     await api('admin/categories/' + d.catimg, 'PUT', { image_id }); toast('Görsel güncellendi'); loadCats();
   }
-  if (d.status) { await api('admin/orders/' + d.status, 'PUT', { status: e.target.value }); toast('Durum güncellendi'); }
 });
 
 // ---- siparişler ----
-const statuses = ['yeni', 'hazırlanıyor', 'kargoda', 'teslim edildi', 'iptal'];
+const stLabel = { 'yeni': 'Yeni', 'hazırlanıyor': 'Hazırlanıyor', 'kargoda': 'Kargoda', 'teslim edildi': 'Teslim edildi', 'iptal': 'İptal' };
+const statuses = Object.keys(stLabel);
+const stClass = s => 'st-' + s.replace(/\s/g, '');
+const fmtDT = s => new Date(s).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+let orders = [], ofilt = 'hepsi', openNo = null;
+
 async function loadOrders() {
-  const rows = await api('admin/orders');
-  $('#otable').innerHTML = rows.map(o => `<tr>
-    <td>${o.id}<br><small>${new Date(o.created_at).toLocaleString('tr-TR')}</small></td>
-    <td>${esc(o.customer_name)}<br><small>${esc(o.phone)}<br>${esc(o.address)}${o.note ? '<br><em>' + esc(o.note) + '</em>' : ''}</small></td>
-    <td>${o.items.map(i => `${i.qty}× ${esc(i.name)}${i.color || i.size ? ' <small>(' + esc([i.color, i.size].filter(Boolean).join(' · ')) + ')</small>' : ''}`).join('<br>')}</td>
-    <td>${tl(o.total)}</td>
-    <td><select data-status="${o.id}">${statuses.map(s => `<option ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')
-    || '<tr><td colspan="5">Henüz sipariş yok.</td></tr>';
+  orders = await api('admin/orders');
+  const n = orders.filter(o => o.status === 'yeni').length;
+  $('#newCnt').hidden = !n; $('#newCnt').textContent = n;
+  if (openNo) openOrder(openNo); else renderOrders();
 }
+function renderOrders() {
+  const count = s => s === 'hepsi' ? orders.length : orders.filter(o => o.status === s).length;
+  $('#ofilter').innerHTML = ['hepsi', ...statuses].map(s =>
+    `<button type="button" class="${s === ofilt ? 'on' : ''}" data-ofilter="${s}">${s === 'hepsi' ? 'Tümü' : stLabel[s]} <b>${count(s)}</b></button>`).join('');
+  const list = orders.filter(o => ofilt === 'hepsi' || o.status === ofilt);
+  $('#otable').innerHTML = list.map(o => `<tr class="row-click" data-oopen="${o.id}">
+    <td><span class="pname">#${o.id}</span><div class="psub">${fmtDT(o.created_at)}</div></td>
+    <td><span class="pname">${esc(o.customer_name)}</span><div class="psub">${esc(o.district)} / ${esc(o.city)} · ${esc(o.phone)}</div></td>
+    <td>${tl(o.total)}<div class="psub">${o.items.reduce((a, i) => a + i.qty, 0)} ürün</div></td>
+    <td><span class="stb ${stClass(o.status)}">${stLabel[o.status]}</span></td></tr>`).join('')
+    || `<tr><td colspan="4">${orders.length ? 'Bu durumda sipariş yok.' : 'Henüz sipariş yok.'}</td></tr>`;
+}
+function openOrder(id) {
+  const o = orders.find(x => x.id == id); if (!o) { openNo = null; $('#oview').hidden = true; $('#olist').hidden = false; return renderOrders(); }
+  openNo = o.id;
+  const cancelled = o.status === 'iptal';
+  const wa = 'https://wa.me/9' + o.phone.replace(/\D/g, '');
+  const fullAddr = `${o.customer_name}\n${o.address}\n${o.district} / ${o.city}\n${o.phone}`;
+  $('#olist').hidden = true; $('#oview').hidden = false;
+  $('#oview').innerHTML = `
+    <div class="fhead"><a class="back" href="#" data-oback="1">← Siparişler</a><h2>Sipariş #${o.id}</h2><span class="stb ${stClass(o.status)}">${stLabel[o.status]}</span><span class="psub" style="margin-left:auto">${fmtDT(o.created_at)}</span></div>
+    <div class="fgrid">
+      <div class="fcol">
+        <section class="card2"><h3>Müşteri</h3>
+          <div class="info"><b>${esc(o.customer_name)}</b>
+            <a href="tel:${esc(o.phone)}">${esc(o.phone)}</a> · <a href="${wa}" target="_blank" rel="noopener">WhatsApp</a>
+            ${o.email ? `<br><a href="mailto:${esc(o.email)}">${esc(o.email)}</a>` : ''}</div>
+        </section>
+        <section class="card2"><h3>Teslimat adresi</h3>
+          <div class="info">${esc(o.address)}<br>${esc(o.district)} / ${esc(o.city)}</div>
+          <button type="button" class="btn ghost sm" style="margin-top:10px" data-ocopy="1">Adresi kopyala</button>
+          ${o.note ? `<div class="note"><b>Müşteri notu:</b> ${esc(o.note)}</div>` : ''}
+        </section>
+        <section class="card2"><h3>Ürünler</h3>
+          <table class="vgrid"><tbody>${o.items.map(i => `<tr><td>${i.qty} ×</td><td>${esc(i.name)}${i.color || i.size ? `<div class="psub">${esc([i.color, i.size].filter(Boolean).join(' · '))}</div>` : ''}</td><td class="acts">${tl(i.price * i.qty)}</td></tr>`).join('')}
+          <tr><td></td><td><b>Toplam</b><div class="psub">Ödeme: ${esc(o.payment)}</div></td><td class="acts"><b>${tl(o.total)}</b></td></tr></tbody></table>
+        </section>
+      </div>
+      <div class="fcol">
+        <section class="card2"><h3>Durum ve kargo</h3>
+          <label>Durum</label>
+          <select id="o_status" ${cancelled ? 'disabled' : ''}>${statuses.map(s => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${stLabel[s]}</option>`).join('')}</select>
+          ${cancelled ? '<div class="hint">İptal edilen sipariş yeniden açılamaz (stok geri eklendi).</div>' : ''}
+          <label>Kargo firması</label><input type="text" id="o_cargo" value="${esc(o.cargo_company)}" placeholder="Örn. Yurtiçi Kargo">
+          <label>Kargo takip no</label><input type="text" id="o_track" value="${esc(o.tracking_no)}">
+          <label>Not <small>(yalnızca siz görürsünüz)</small></label><textarea id="o_note">${esc(o.admin_note)}</textarea>
+          <button type="button" class="btn" style="margin-top:12px;width:100%;justify-content:center" data-osave="${o.id}">Kaydet</button>
+          <div class="hint">Durumu "İptal" yaparsanız ürünler stoğa geri eklenir.</div>
+        </section>
+        <section class="card2"><h3>Geçmiş</h3>
+          <ul class="hist">${(o.history || []).map(h => `<li><b>${stLabel[h.status] || esc(h.status)}</b><span>${fmtDT(h.at)}</span></li>`).join('')}</ul>
+        </section>
+      </div>
+    </div>`;
+  $('#oview').dataset.addr = fullAddr;
+  scrollTo({ top: 0 });
+}
+function closeOrder() { openNo = null; $('#oview').hidden = true; $('#olist').hidden = false; renderOrders(); }
+$('#oreload').onclick = () => loadOrders();
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-ofilter],[data-oopen],[data-oback],[data-ocopy],[data-osave]'); if (!t) return;
+  const d = t.dataset;
+  if (d.ofilter) { ofilt = d.ofilter; renderOrders(); }
+  if (d.oopen) openOrder(d.oopen);
+  if (d.oback) { e.preventDefault(); closeOrder(); }
+  if (d.ocopy) { try { await navigator.clipboard.writeText($('#oview').dataset.addr); toast('Adres kopyalandı'); } catch { toast('Kopyalanamadı'); } }
+  if (d.osave) {
+    const st = $('#o_status').value, o = orders.find(x => x.id == d.osave);
+    if (st === 'iptal' && o.status !== 'iptal' && !confirm('Sipariş iptal edilsin mi? Ürünler stoğa geri eklenir ve bu işlem geri alınamaz.')) return;
+    try {
+      await api('admin/orders/' + d.osave, 'PUT', { status: st, cargo_company: $('#o_cargo').value, tracking_no: $('#o_track').value, admin_note: $('#o_note').value });
+      toast('Sipariş güncellendi'); await loadOrders(); loadProducts();
+    } catch {}
+  }
+});
 
 fetch('/api/admin/me').then(r => r.ok ? showApp() : showLogin());
 </script>

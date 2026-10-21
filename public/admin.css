@@ -95,3 +95,22 @@ body.adm{background:#f6f4ef;font-size:15px}
   .adm td:first-child{width:46px}
   .bar input[type=search]{max-width:none}
 }
+
+/* siparişler */
+.cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--danger,#c0392b);color:#fff;font-size:.7rem;line-height:18px;text-align:center;font-weight:600}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 12px;font-size:.8rem;cursor:pointer;color:var(--ink);font-family:inherit}
+.seg button b{color:var(--muted);font-weight:600;margin-left:2px}
+.seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}.seg button.on b{color:#fff}
+.stb{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.74rem;font-weight:600;background:#eceae3;color:#555;white-space:nowrap}
+.stb.st-yeni{background:#fdecc8;color:#8a5a00}
+.stb.st-hazırlanıyor{background:#dfe8fb;color:#2c4a99}
+.stb.st-kargoda{background:#e0f0e6;color:#1d6b3c}
+.stb.st-teslimedildi{background:#d4efd9;color:#14532d}
+.stb.st-iptal{background:#f6d9d6;color:#9b2c22}
+.info{line-height:1.7;font-size:.9rem;margin-top:6px}.info a{color:var(--brand)}
+.note{margin-top:10px;padding:8px 10px;background:#fff7e0;border-radius:6px;font-size:.85rem}
+.hist{list-style:none;margin:8px 0 0;padding:0;font-size:.85rem}
+.hist li{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line)}.hist li span{color:var(--muted)}
+#oview .vgrid td{padding:6px 4px}
+@media(max-width:720px){.fhead{flex-wrap:wrap}.seg button{padding:4px 9px;font-size:.76rem}#otable .psub{white-space:normal}}
